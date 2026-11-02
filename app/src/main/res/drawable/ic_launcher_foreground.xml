@@ -5,30 +5,29 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Lime chamfered shape (top-right corner cut at 45 degrees) -->
+    <!-- Lime chamfered shape matching "Ícone de lançamento Sólido" (top-left and bottom-right 45-degree cuts) -->
     <path
         android:fillColor="#D4FF3A"
-        android:pathData="M24,24 L70,24 L84,38 L84,84 L24,84 Z" />
+        android:pathData="M34,24 L84,24 L84,74 L74,84 L24,84 L24,34 Z" />
 
-    <!-- Geometric Orbitron-inspired black "OCTO" wordmark -->
+    <!-- Geometric Orbitron-style black "OCTO" wordmark -->
     <!-- O -->
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="M30,47 L38,47 L40,49 L40,59 L38,61 L30,61 L28,59 L28,49 Z M31,50 L31,58 L37,58 L37,50 Z" />
+        android:pathData="M30,48 L39,48 L41,50 L41,58 L39,60 L30,60 L28,58 L28,50 Z M31,51 L31,57 L38,57 L38,51 Z" />
 
     <!-- C -->
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="M45,47 L53,47 L53,50 L46,50 L46,58 L53,58 L53,61 L45,61 L43,59 L43,49 Z" />
+        android:pathData="M45,48 L54,48 L54,51 L46,51 L46,57 L54,57 L54,60 L45,60 L43,58 L43,50 Z" />
 
     <!-- T -->
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="M55,47 L66,47 L66,50 L62,50 L62,61 L59,61 L59,50 L55,50 Z" />
+        android:pathData="M56,48 L67,48 L67,51 L63,51 L63,60 L60,60 L60,51 L56,51 Z" />
 
     <!-- O -->
     <path
         android:fillColor="#0A0A0A"
-        android:pathData="M70,47 L78,47 L80,49 L80,59 L78,61 L70,61 L68,59 L68,49 Z M71,50 L71,58 L77,58 L77,50 Z" />
+        android:pathData="M71,48 L80,48 L82,50 L82,58 L80,60 L71,60 L69,58 L69,50 Z M72,51 L72,57 L79,57 L79,51 Z" />
 </vector>
-

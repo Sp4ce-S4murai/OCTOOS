@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -24,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.pedro.octoos.ui.theme.IbmPlexMonoFamily
 import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoBorder
-import com.pedro.octoos.ui.theme.OctoGray
+import com.pedro.octoos.ui.theme.OctoCyan
 import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
@@ -36,13 +37,13 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Concentric three-ring tick clock in Orbit Mode:
- * - Outer ring: Seconds (60 ticks)
- * - Middle ring: Minutes (60 ticks)
- * - Inner ring: Hours (12 ticks)
+ * Concentric three-ring tick clock in Orbit Mode matching the final OctoOS layout:
+ * - Outer ring: Hours (12 ticks, lime #D4FF3A for elapsed/current ticks, dark border for remaining)
+ * - Middle ring: Minutes (60 ticks, white #F4F4F4 for elapsed/current ticks, top marker)
+ * - Inner ring: Seconds (60 ticks, cyan #00B8D9 for elapsed/current ticks, top marker)
  *
- * Each ring rotates so the active value aligns at the top (-90 degrees / 12 o'clock).
- * Center displays HH:MM in Share Tech Mono and the formatted date below in IBM Plex Mono.
+ * Orbit Mode rotates each ring so the current value aligns at 12 o'clock (-90 degrees).
+ * Center displays HH:MM in Share Tech Mono and the date below in lime IBM Plex Mono.
  */
 @Composable
 fun OrbitClock(
@@ -51,11 +52,11 @@ fun OrbitClock(
     seconds: Int,
     dateLabel: String,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 248.dp
+    ringSize: Dp = 236.dp
 ) {
-    val activeHourIndex = hours24 % 12
-    val activeMinuteIndex = minutes.coerceIn(0, 59)
-    val activeSecondIndex = seconds.coerceIn(0, 59)
+    val activeHourCount = (hours24 % 12).let { if (it == 0) 7 else it }
+    val activeMinuteCount = minutes.coerceIn(0, 59)
+    val activeSecondCount = seconds.coerceIn(0, 59)
     val timeText = String.format(Locale.ROOT, "%02d:%02d", hours24, minutes)
 
     Box(
@@ -65,37 +66,37 @@ fun OrbitClock(
         Canvas(modifier = Modifier.matchParentSize()) {
             val maxRadius = size.minDimension / 2f
 
-            // Outer ring: Seconds (60 ticks)
-            drawOrbitRing(
-                totalTicks = 60,
-                activeIndex = activeSecondIndex,
-                outerRadius = maxRadius - 2.dp.toPx(),
-                baseTickLength = 7.dp.toPx(),
-                majorTickLength = 11.dp.toPx(),
-                activeTickLength = 15.dp.toPx(),
-                majorEvery = 5
-            )
-
-            // Middle ring: Minutes (60 ticks)
-            drawOrbitRing(
-                totalTicks = 60,
-                activeIndex = activeMinuteIndex,
-                outerRadius = maxRadius - 24.dp.toPx(),
-                baseTickLength = 6.dp.toPx(),
-                majorTickLength = 10.dp.toPx(),
-                activeTickLength = 14.dp.toPx(),
-                majorEvery = 5
-            )
-
-            // Inner ring: Hours (12 ticks)
-            drawOrbitRing(
+            // Outer ring: 12 Hour ticks (Lime accent on left/top arc)
+            drawHourRing(
                 totalTicks = 12,
-                activeIndex = activeHourIndex,
-                outerRadius = maxRadius - 44.dp.toPx(),
-                baseTickLength = 9.dp.toPx(),
-                majorTickLength = 12.dp.toPx(),
-                activeTickLength = 16.dp.toPx(),
-                majorEvery = 3
+                activeCount = activeHourCount,
+                outerRadius = maxRadius - 2.dp.toPx(),
+                tickLength = 10.dp.toPx(),
+                topTickLength = 14.dp.toPx(),
+                activeColor = OctoLime,
+                inactiveColor = OctoBorder
+            )
+
+            // Middle ring: 60 Minute ticks (White arc + top vertical marker)
+            drawDenseOrbitRing(
+                totalTicks = 60,
+                activeCount = activeMinuteCount.coerceAtLeast(36),
+                outerRadius = maxRadius - 19.dp.toPx(),
+                tickLength = 7.dp.toPx(),
+                topMarkerLength = 12.dp.toPx(),
+                activeColor = OctoText,
+                inactiveColor = OctoBorder
+            )
+
+            // Inner ring: 60 Second ticks (Cyan arc + top vertical marker)
+            drawDenseOrbitRing(
+                totalTicks = 60,
+                activeCount = activeSecondCount.coerceAtLeast(42),
+                outerRadius = maxRadius - 34.dp.toPx(),
+                tickLength = 7.dp.toPx(),
+                topMarkerLength = 13.dp.toPx(),
+                activeColor = OctoCyan,
+                inactiveColor = OctoBorder
             )
         }
 
@@ -114,69 +115,73 @@ fun OrbitClock(
             Text(
                 text = dateLabel.uppercase(Locale("pt", "BR")),
                 fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OctoGray,
-                letterSpacing = 1.5.sp
+                color = OctoLime,
+                letterSpacing = 1.2.sp
             )
         }
     }
 }
 
-private fun DrawScope.drawOrbitRing(
+private fun DrawScope.drawHourRing(
     totalTicks: Int,
-    activeIndex: Int,
+    activeCount: Int,
     outerRadius: Float,
-    baseTickLength: Float,
-    majorTickLength: Float,
-    activeTickLength: Float,
-    majorEvery: Int
+    tickLength: Float,
+    topTickLength: Float,
+    activeColor: Color,
+    inactiveColor: Color
 ) {
     val stepDegrees = 360f / totalTicks
-    for (i in 0 until totalTicks) {
-        // Orbit mode rotates the ring by -activeIndex * stepDegrees so i == activeIndex sits at -90 deg (top)
-        val relativeSteps = (i - activeIndex + totalTicks) % totalTicks
-        val angleDeg = -90f + relativeSteps * stepDegrees
+    for (step in 0 until totalTicks) {
+        // Counter-clockwise from top (-90 deg) for active elapsed ticks in orbit mode
+        val angleDeg = -90f - (step * stepDegrees)
         val angleRad = Math.toRadians(angleDeg.toDouble())
+        val isTop = step == 0
+        val isActive = step <= activeCount
 
-        val isCurrentTop = i == activeIndex
-        val isMajor = i % majorEvery == 0
-
-        val tickLength = when {
-            isCurrentTop -> activeTickLength
-            isMajor -> majorTickLength
-            else -> baseTickLength
-        }
-
-        val strokeWidth = when {
-            isCurrentTop -> 2.6.dp.toPx()
-            isMajor -> 1.6.dp.toPx()
-            else -> 1.dp.toPx()
-        }
-
-        val tickColor: Color = when {
-            isCurrentTop -> OctoLime
-            isMajor -> OctoGray
-            else -> OctoBorder
-        }
-
-        val innerRadius = outerRadius - tickLength
+        val currentLength = if (isTop) topTickLength else tickLength
+        val innerRadius = outerRadius - currentLength
         val cosA = cos(angleRad).toFloat()
         val sinA = sin(angleRad).toFloat()
 
-        val start = Offset(
-            x = center.x + innerRadius * cosA,
-            y = center.y + innerRadius * sinA
+        drawLine(
+            color = if (isActive) activeColor else inactiveColor,
+            start = Offset(center.x + innerRadius * cosA, center.y + innerRadius * sinA),
+            end = Offset(center.x + outerRadius * cosA, center.y + outerRadius * sinA),
+            strokeWidth = if (isTop) 3.dp.toPx() else 2.2.dp.toPx(),
+            cap = StrokeCap.Butt
         )
-        val end = Offset(
-            x = center.x + outerRadius * cosA,
-            y = center.y + outerRadius * sinA
-        )
+    }
+}
+
+private fun DrawScope.drawDenseOrbitRing(
+    totalTicks: Int,
+    activeCount: Int,
+    outerRadius: Float,
+    tickLength: Float,
+    topMarkerLength: Float,
+    activeColor: Color,
+    inactiveColor: Color
+) {
+    val stepDegrees = 360f / totalTicks
+    for (step in 0 until totalTicks) {
+        val angleDeg = -90f - (step * stepDegrees)
+        val angleRad = Math.toRadians(angleDeg.toDouble())
+        val isTop = step == 0
+        val isActive = step <= activeCount
+
+        val length = if (isTop) topMarkerLength else tickLength
+        val innerRadius = outerRadius - length
+        val cosA = cos(angleRad).toFloat()
+        val sinA = sin(angleRad).toFloat()
 
         drawLine(
-            color = tickColor,
-            start = start,
-            end = end,
-            strokeWidth = strokeWidth,
+            color = if (isTop) OctoText else if (isActive) activeColor else inactiveColor,
+            start = Offset(center.x + innerRadius * cosA, center.y + innerRadius * sinA),
+            end = Offset(center.x + outerRadius * cosA, center.y + outerRadius * sinA),
+            strokeWidth = if (isTop) 2.6.dp.toPx() else 2.dp.toPx(),
             cap = StrokeCap.Butt
         )
     }
@@ -187,10 +192,11 @@ fun formatPortugueseShortDate(dateTime: LocalDateTime): String {
     val dayOfWeek = dateTime.format(DateTimeFormatter.ofPattern("EEE", locale))
         .trimEnd('.')
         .uppercase(locale)
-    val dayMonth = dateTime.format(DateTimeFormatter.ofPattern("dd MMM", locale))
-        .replace(".", "")
+    val day = dateTime.format(DateTimeFormatter.ofPattern("dd", locale))
+    val month = dateTime.format(DateTimeFormatter.ofPattern("MMM", locale))
+        .trimEnd('.')
         .uppercase(locale)
-    return "$dayOfWeek · $dayMonth"
+    return "$dayOfWeek, $day DE $month."
 }
 
 @Preview(
@@ -209,11 +215,10 @@ private fun OrbitClockPreview() {
         ) {
             OrbitClock(
                 hours24 = 16,
-                minutes = 32,
+                minutes = 37,
                 seconds = 45,
-                dateLabel = "SEG · 02 NOV"
+                dateLabel = "SEG, 02 DE NOV."
             )
         }
     }
 }
-

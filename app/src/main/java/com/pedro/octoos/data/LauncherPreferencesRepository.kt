@@ -1,0 +1,67 @@
+package com.pedro.octoos.data
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "octoos_prefs")
+
+class LauncherPreferencesRepository(private val context: Context) {
+
+    private val weatherTempKey = intPreferencesKey("weather_temp_c")
+    private val weatherHumidityKey = intPreferencesKey("weather_humidity")
+    private val weatherWindKey = intPreferencesKey("weather_wind_kmh")
+    private val weatherUpdatedEpochKey = longPreferencesKey("weather_updated_epoch")
+
+    fun launchCountsFlow(packageNames: List<String>): Flow<Map<String, Int>> {
+        return context.dataStore.data.map { prefs ->
+            packageNames.associateWith { pkg ->
+                prefs[launchCountKey(pkg)] ?: defaultSeedCount(pkg)
+            }
+        }
+    }
+
+    suspend fun incrementLaunchCount(packageName: String) {
+        context.dataStore.edit { prefs ->
+            val key = launchCountKey(packageName)
+            val current = prefs[key] ?: defaultSeedCount(packageName)
+            prefs[key] = current + 1
+        }
+    }
+
+    val weatherFlow: Flow<WeatherState> = context.dataStore.data.map { prefs ->
+        val temp = prefs[weatherTempKey] ?: 24
+        val humidity = prefs[weatherHumidityKey] ?: 61
+        val wind = prefs[weatherWindKey] ?: 12
+        val updatedAt = prefs[weatherUpdatedEpochKey] ?: System.currentTimeMillis()
+        val elapsedHours = ((System.currentTimeMillis() - updatedAt) / 3_600_000L)
+            .toInt()
+            .coerceAtLeast(1)
+        WeatherState(
+            temperatureCelsius = temp,
+            humidityPercent = humidity,
+            windKmh = wind,
+            isOffline = false,
+            hoursSinceUpdate = elapsedHours
+        )
+    }
+
+    private fun launchCountKey(packageName: String) =
+        intPreferencesKey("launch_count_$packageName")
+
+    private fun defaultSeedCount(packageName: String): Int = when {
+        packageName.contains("claude", ignoreCase = true) -> 42
+        packageName.contains("maps", ignoreCase = true) -> 28
+        packageName.contains("mms", ignoreCase = true) ||
+            packageName.contains("messaging", ignoreCase = true) -> 35
+        packageName.contains("git", ignoreCase = true) -> 24
+        else -> 12
+    }
+}
+

@@ -9,5 +9,5 @@ val OctoLime = Color(0xFFD4FF3A)
 val OctoTile = Color(0xFF161616)
 val OctoBorder = Color(0x1FFFFFFF) // #FFFFFF1F
 val OctoGray = Color(0xFF8E8E9C)
+val OctoCyan = Color(0xFF00B8D9)
 val OctoDanger = Color(0xFFFF3A3A)
-
