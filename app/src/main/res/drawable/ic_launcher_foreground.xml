@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Lime chamfered shape (top-right corner cut at 45 degrees) -->
+    <path
+        android:fillColor="#D4FF3A"
+        android:pathData="M24,24 L70,24 L84,38 L84,84 L24,84 Z" />
+
+    <!-- Geometric Orbitron-inspired black "OCTO" wordmark -->
+    <!-- O -->
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M30,47 L38,47 L40,49 L40,59 L38,61 L30,61 L28,59 L28,49 Z M31,50 L31,58 L37,58 L37,50 Z" />
+
+    <!-- C -->
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M45,47 L53,47 L53,50 L46,50 L46,58 L53,58 L53,61 L45,61 L43,59 L43,49 Z" />
+
+    <!-- T -->
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M55,47 L66,47 L66,50 L62,50 L62,61 L59,61 L59,50 L55,50 Z" />
+
+    <!-- O -->
+    <path
+        android:fillColor="#0A0A0A"
+        android:pathData="M70,47 L78,47 L80,49 L80,59 L78,61 L70,61 L68,59 L68,49 Z M71,50 L71,58 L77,58 L77,50 Z" />
+</vector>
+
