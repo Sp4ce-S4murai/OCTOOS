@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
@@ -36,6 +35,8 @@ import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.ShareTechMonoFamily
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.sin
@@ -213,6 +214,18 @@ private fun DrawScope.drawRing(
             cap = StrokeCap.Butt
         )
     }
+}
+
+fun formatPortugueseShortDate(dateTime: LocalDateTime): String {
+    val locale = Locale("pt", "BR")
+    val dayOfWeek = dateTime.format(DateTimeFormatter.ofPattern("EEE", locale))
+        .trimEnd('.')
+        .uppercase(locale)
+    val day = dateTime.format(DateTimeFormatter.ofPattern("dd", locale))
+    val month = dateTime.format(DateTimeFormatter.ofPattern("MMM", locale))
+        .trimEnd('.')
+        .uppercase(locale)
+    return "$dayOfWeek, $day DE $month."
 }
 
 @Preview(

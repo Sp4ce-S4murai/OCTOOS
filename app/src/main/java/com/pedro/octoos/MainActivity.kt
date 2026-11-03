@@ -2,6 +2,7 @@ package com.pedro.octoos
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -22,6 +23,8 @@ import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.LauncherPreferencesRepository
 import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherState
+import com.pedro.octoos.ui.allapps.AllAppsScreen
+import com.pedro.octoos.ui.components.OctoIconType
 import com.pedro.octoos.ui.components.formatPortugueseShortDate
 import com.pedro.octoos.ui.home.HomeScreen
 import com.pedro.octoos.ui.theme.OctoBackground
@@ -29,6 +32,11 @@ import com.pedro.octoos.ui.theme.OctoOSTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+
+enum class OctoRoute {
+    HOME,
+    ALL_APPS
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,11 +67,16 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val prefsRepo = remember { LauncherPreferencesRepository(context) }
 
+    var currentRoute by remember { mutableStateOf(OctoRoute.HOME) }
     val baseGridApps = remember { InstalledAppsHelper.defaultHomeGridApps() }
     val dockApps = remember { InstalledAppsHelper.defaultDockApps() }
-    val packageNames = remember { baseGridApps.map { it.packageName } }
+    val allCatalogApps = remember { InstalledAppsHelper.loadAllInstalledApps(context) }
 
-    val launchCounts by prefsRepo.launchCountsFlow(packageNames)
+    val trackedPackages = remember(allCatalogApps, baseGridApps) {
+        (allCatalogApps.map { it.packageName } + baseGridApps.map { it.packageName }).distinct()
+    }
+
+    val launchCounts by prefsRepo.launchCountsFlow(trackedPackages)
         .collectAsState(initial = emptyMap())
     val storedWeather by prefsRepo.weatherFlow
         .collectAsState(initial = WeatherState())
@@ -79,7 +92,8 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         }
     }
 
-    val maxCount = (launchCounts.values.maxOrNull() ?: 50).coerceAtLeast(1)
+    val maxCount = (launchCounts.values.maxOrNull() ?: 64).coerceAtLeast(1)
+
     val gridAppsWithUsage = baseGridApps.map { app ->
         val count = launchCounts[app.packageName] ?: app.launchCount
         app.copy(
@@ -88,21 +102,57 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         )
     }
 
-    HomeScreen(
-        hours24 = now.hour,
-        minutes = now.minute,
-        seconds = now.second,
-        dateLabel = formatPortugueseShortDate(now),
-        telemetry = TelemetryState(),
-        weather = storedWeather.copy(isOffline = !isConnected),
-        gridApps = gridAppsWithUsage,
-        dockApps = dockApps,
-        onAppClick = { entry ->
-            scope.launch {
-                prefsRepo.incrementLaunchCount(entry.packageName)
-            }
-            InstalledAppsHelper.launchAppOrFallback(context, entry)
-        },
-        modifier = modifier
-    )
+    val allAppsWithUsage = allCatalogApps.map { app ->
+        val count = launchCounts[app.packageName] ?: app.launchCount
+        app.copy(
+            launchCount = count,
+            usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.12f, 1f)
+        )
+    }
+
+    BackHandler(enabled = currentRoute != OctoRoute.HOME) {
+        currentRoute = OctoRoute.HOME
+    }
+
+    when (currentRoute) {
+        OctoRoute.HOME -> {
+            HomeScreen(
+                hours24 = now.hour,
+                minutes = now.minute,
+                seconds = now.second,
+                dateLabel = formatPortugueseShortDate(now),
+                telemetry = TelemetryState(),
+                weather = storedWeather.copy(isOffline = !isConnected),
+                gridApps = gridAppsWithUsage,
+                dockApps = dockApps,
+                onAppClick = { entry ->
+                    if (entry.iconType == OctoIconType.TODOS ||
+                        entry.packageName == "octo.internal.all_apps"
+                    ) {
+                        currentRoute = OctoRoute.ALL_APPS
+                    } else {
+                        scope.launch {
+                            prefsRepo.incrementLaunchCount(entry.packageName)
+                        }
+                        InstalledAppsHelper.launchAppOrFallback(context, entry)
+                    }
+                },
+                modifier = modifier
+            )
+        }
+
+        OctoRoute.ALL_APPS -> {
+            AllAppsScreen(
+                apps = allAppsWithUsage,
+                onAppClick = { entry ->
+                    scope.launch {
+                        prefsRepo.incrementLaunchCount(entry.packageName)
+                    }
+                    InstalledAppsHelper.launchAppOrFallback(context, entry)
+                },
+                onBackClick = { currentRoute = OctoRoute.HOME },
+                modifier = modifier
+            )
+        }
+    }
 }
