@@ -64,12 +64,30 @@ fun OrbitClock(
     seconds: Int,
     dateLabel: String,
     modifier: Modifier = Modifier,
-    ringSize: Dp = 236.dp
+    ringSize: Dp = 236.dp,
+    orbitMode: Boolean = true,
+    animationsEnabled: Boolean = true,
+    animationDurationMs: Int = 900
 ) {
     val hourValue = hours24 % 12
-    val hourAngle = rememberRingAngle(hourValue + minutes / 60f, 12)
-    val minuteAngle = rememberRingAngle(minutes + seconds / 60f, 60)
-    val secondAngle = rememberRingAngle(seconds.toFloat(), 60)
+    val hourAngle = rememberRingAngle(
+        position = if (orbitMode) hourValue + minutes / 60f else 0f,
+        count = 12,
+        animationsEnabled = animationsEnabled,
+        durationMs = animationDurationMs
+    )
+    val minuteAngle = rememberRingAngle(
+        position = if (orbitMode) minutes + seconds / 60f else 0f,
+        count = 60,
+        animationsEnabled = animationsEnabled,
+        durationMs = animationDurationMs
+    )
+    val secondAngle = rememberRingAngle(
+        position = if (orbitMode) seconds.toFloat() else 0f,
+        count = 60,
+        animationsEnabled = animationsEnabled,
+        durationMs = animationDurationMs
+    )
 
     val timeText = String.format(Locale.ROOT, "%02d:%02d", hours24, minutes)
 
@@ -157,15 +175,25 @@ private fun ringTarget(position: Float, count: Int): Float = -(position / count)
  * no mesmo sentido, sem retroceder uma volta inteira.
  */
 @Composable
-private fun rememberRingAngle(position: Float, count: Int): Animatable<Float, AnimationVector1D> {
+private fun rememberRingAngle(
+    position: Float,
+    count: Int,
+    animationsEnabled: Boolean,
+    durationMs: Int
+): Animatable<Float, AnimationVector1D> {
     val angle = remember { Animatable(ringTarget(position, count)) }
-    LaunchedEffect(position) {
+    LaunchedEffect(position, animationsEnabled, durationMs) {
         val goal = ringTarget(position, count)
         val turns = Math.round((angle.value - goal) / 360f)
-        angle.animateTo(
-            targetValue = goal + turns * 360f,
-            animationSpec = tween(durationMillis = 900, easing = OrbitEase)
-        )
+        val target = goal + turns * 360f
+        if (animationsEnabled && durationMs > 0) {
+            angle.animateTo(
+                targetValue = target,
+                animationSpec = tween(durationMillis = durationMs, easing = OrbitEase)
+            )
+        } else {
+            angle.snapTo(target)
+        }
     }
     return angle
 }

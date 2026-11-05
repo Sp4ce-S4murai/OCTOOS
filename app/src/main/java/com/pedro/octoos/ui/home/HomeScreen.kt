@@ -1,6 +1,7 @@
 package com.pedro.octoos.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,10 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pedro.octoos.data.AppEntry
 import com.pedro.octoos.data.InstalledAppsHelper
+import com.pedro.octoos.data.SettingsState
 import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherState
 import com.pedro.octoos.ui.components.OctoCloudIcon
-import com.pedro.octoos.ui.components.OctoIconType
 import com.pedro.octoos.ui.components.OctoSolidIcon
 import com.pedro.octoos.ui.components.OrbitClock
 import com.pedro.octoos.ui.theme.BebasNeueFamily
@@ -37,10 +38,12 @@ import com.pedro.octoos.ui.theme.ChamferedShape
 import com.pedro.octoos.ui.theme.IbmPlexMonoFamily
 import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoBorder
+import com.pedro.octoos.ui.theme.OctoDanger
 import com.pedro.octoos.ui.theme.OctoGray
 import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
+import com.pedro.octoos.ui.theme.OctoTile
 import com.pedro.octoos.ui.theme.OrbitronFamily
 import java.util.Locale
 
@@ -55,8 +58,13 @@ fun HomeScreen(
     gridApps: List<AppEntry>,
     dockApps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    settings: SettingsState = SettingsState(),
+    onOpenSettingsClick: () -> Unit = {},
+    onOpenOverclockClick: () -> Unit = {}
 ) {
+    val scaledRingSize = (236f * (settings.clockScalePercent / 100f)).dp
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -64,7 +72,12 @@ fun HomeScreen(
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        HomeTelemetryHeader(telemetry = telemetry)
+        HomeTelemetryHeader(
+            telemetry = telemetry,
+            overclockLabel = settings.overclockMode.label.uppercase(Locale.ROOT),
+            onOpenSettingsClick = onOpenSettingsClick,
+            onOpenOverclockClick = onOpenOverclockClick
+        )
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -73,7 +86,10 @@ fun HomeScreen(
             minutes = minutes,
             seconds = seconds,
             dateLabel = dateLabel,
-            ringSize = 236.dp
+            ringSize = scaledRingSize,
+            orbitMode = settings.orbitModeEnabled,
+            animationsEnabled = settings.overclockMode.animationsEnabled,
+            animationDurationMs = settings.overclockMode.animationDurationMs
         )
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -82,18 +98,27 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Top 4-app grid with 3.dp usage bars at the base of each tile
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            gridApps.take(4).forEach { app ->
-                LimeChamferTile(
-                    entry = app,
-                    showUsageBar = true,
-                    onClick = { onAppClick(app) },
-                    modifier = Modifier.weight(1f)
-                )
+        // Top app grid with optional 3.dp usage bars at the base of each tile
+        val visibleGridApps = gridApps.take(settings.gridAppsLimit)
+        val rows = visibleGridApps.chunked(4)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            rows.forEach { rowApps ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    rowApps.forEach { app ->
+                        LimeChamferTile(
+                            entry = app,
+                            showUsageBar = settings.showUsageBars,
+                            onClick = { onAppClick(app) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    repeat((4 - rowApps.size).coerceAtLeast(0)) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
 
@@ -129,8 +154,12 @@ fun HomeScreen(
 @Composable
 private fun HomeTelemetryHeader(
     telemetry: TelemetryState,
+    overclockLabel: String,
+    onOpenSettingsClick: () -> Unit,
+    onOpenOverclockClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isHot = telemetry.cpuTempCelsius > 60
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -156,7 +185,8 @@ private fun HomeTelemetryHeader(
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OctoGray
+                color = if (isHot) OctoDanger else OctoGray,
+                modifier = Modifier.clickable(onClick = onOpenOverclockClick)
             )
         }
 
@@ -171,18 +201,65 @@ private fun HomeTelemetryHeader(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = OctoText, fontWeight = FontWeight.Bold)) {
+                        append("OCTO")
+                    }
+                    withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Bold)) {
+                        append("/OS")
+                    }
+                },
+                fontFamily = OrbitronFamily,
+                fontSize = 22.sp,
+                letterSpacing = 1.5.sp,
+                modifier = Modifier.clickable(onClick = onOpenSettingsClick)
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                HeaderBadge(
+                    label = overclockLabel,
+                    accent = isHot,
+                    onClick = onOpenOverclockClick
+                )
+                HeaderBadge(
+                    label = "CFG",
+                    accent = false,
+                    onClick = onOpenSettingsClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderBadge(
+    label: String,
+    accent: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = ChamferedShape(6.dp)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .background(OctoTile)
+            .border(1.dp, if (accent) OctoDanger else OctoBorder, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = buildAnnotatedString {
-                withStyle(SpanStyle(color = OctoText, fontWeight = FontWeight.Bold)) {
-                    append("OCTO")
-                }
-                withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Bold)) {
-                    append("/OS")
-                }
-            },
-            fontFamily = OrbitronFamily,
-            fontSize = 22.sp,
-            letterSpacing = 1.5.sp
+            text = label,
+            fontFamily = IbmPlexMonoFamily,
+            fontWeight = FontWeight.Medium,
+            fontSize = 9.sp,
+            color = if (accent) OctoDanger else OctoGray,
+            letterSpacing = 0.8.sp
         )
     }
 }
@@ -351,4 +428,3 @@ private fun HomeScreenOfflinePreview() {
         )
     }
 }
-
