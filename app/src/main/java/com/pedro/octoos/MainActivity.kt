@@ -45,6 +45,7 @@ import com.pedro.octoos.ui.overclock.OverclockScreen
 import com.pedro.octoos.ui.settings.SettingsScreen
 import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoOSTheme
+import com.pedro.octoos.ui.theme.OctoPalette
 import com.pedro.octoos.ui.update.UpdateScreen
 import com.pedro.octoos.update.GithubUpdateManager
 import com.pedro.octoos.update.UpdateCheckResult
@@ -141,6 +142,41 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         .collectAsState(initial = WeatherState())
     val storedSettings by prefsRepo.settingsFlow
         .collectAsState(initial = SettingsState())
+
+    LaunchedEffect(storedSettings.accent) {
+        OctoPalette.accent = storedSettings.accent
+    }
+
+    // Primeiro início: pede localização e, em seguida, a permissão de instalar atualizações.
+    val onboardingDone by prefsRepo.onboardingDoneFlow
+        .collectAsState(initial = true)
+
+    val onboardingLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
+        isGpsEnabled = LocationTracker.isGpsProviderEnabled(context)
+        if (granted) {
+            liveLocation = LocationTracker.readCurrentLocation(context)
+        }
+        scope.launch { prefsRepo.markOnboardingDone() }
+        if (!GithubUpdateManager.canInstallUnknownPackages(context)) {
+            GithubUpdateManager.openUnknownSourcesPermissionSettings(context)
+        }
+    }
+
+    LaunchedEffect(onboardingDone) {
+        if (!onboardingDone) {
+            onboardingLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
     val activeTrip by prefsRepo.activeTripFlow
         .collectAsState(initial = ActiveTripState())
 
@@ -330,6 +366,8 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
             MapScreen(
                 activeTrip = activeTrip,
                 userLocation = liveLocation,
+                telemetry = currentTelemetry,
+                weather = storedWeather,
                 isOnline = effectiveOnline,
                 isGpsEnabled = isGpsEnabled,
                 hasLocationPermission = hasLocationPermission,
@@ -357,6 +395,12 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 },
                 onToggleAnimations = { enabled ->
                     scope.launch { prefsRepo.setAnimationsEnabled(enabled) }
+                },
+                onAccentChange = { accent ->
+                    scope.launch { prefsRepo.setAccent(accent) }
+                },
+                onToggleAnimatedBackground = { enabled ->
+                    scope.launch { prefsRepo.setAnimatedBackgroundEnabled(enabled) }
                 },
                 onToggleAutoUpdate = { enabled ->
                     scope.launch { prefsRepo.setAutoUpdateEnabled(enabled) }
@@ -409,6 +453,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 releaseInfo = info,
                 downloadProgressPercent = downloadProgressPercent,
                 onInstallClick = {
+                    downloadProgressPercent = 0
                     scope.launch {
                         val ok = GithubUpdateManager.downloadAndInstallApk(
                             context = context,

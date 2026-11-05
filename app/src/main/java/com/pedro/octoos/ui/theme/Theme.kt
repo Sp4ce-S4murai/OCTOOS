@@ -4,7 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val OctoColorScheme = darkColorScheme(
+private fun octoColorScheme() = darkColorScheme(
     primary = OctoLime,
     onPrimary = OctoBackground,
     secondary = OctoGray,
@@ -25,9 +25,8 @@ fun OctoOSTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = OctoColorScheme,
+        colorScheme = octoColorScheme(),
         typography = OctoTypography,
         content = content
     )
 }
-

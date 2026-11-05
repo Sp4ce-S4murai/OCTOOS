@@ -134,8 +134,12 @@ object GithubUpdateManager {
                 readTimeout = 15000
                 instanceFollowRedirects = true
             }
-            val totalBytes = conn.contentLength.coerceAtLeast(1)
+            conn.connect()
+            if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode}")
+            // -1 quando o servidor não informa o tamanho: a barra fica indeterminada.
+            val totalBytes = conn.getHeaderFieldLong("Content-Length", -1L)
             var bytesReadTotal = 0L
+            withContext(Dispatchers.Main) { onProgressPercent(0) }
 
             conn.inputStream.use { input ->
                 FileOutputStream(targetFile).use { output ->
@@ -144,8 +148,10 @@ object GithubUpdateManager {
                     while (input.read(buffer).also { read = it } != -1) {
                         output.write(buffer, 0, read)
                         bytesReadTotal += read
-                        val pct = ((bytesReadTotal * 100L) / totalBytes).toInt().coerceIn(1, 100)
-                        withContext(Dispatchers.Main) { onProgressPercent(pct) }
+                        if (totalBytes > 0L) {
+                            val pct = ((bytesReadTotal * 100L) / totalBytes).toInt().coerceIn(0, 100)
+                            withContext(Dispatchers.Main) { onProgressPercent(pct) }
+                        }
                     }
                     output.flush()
                 }

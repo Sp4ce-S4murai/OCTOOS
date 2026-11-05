@@ -32,7 +32,11 @@ import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoBorder
 import com.pedro.octoos.ui.theme.OctoGray
 import com.pedro.octoos.ui.theme.OctoLime
+import com.pedro.octoos.ui.theme.OctoAccent
 import com.pedro.octoos.ui.theme.OctoOSTheme
+import com.pedro.octoos.ui.components.pressScale
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OctoTile
 
@@ -44,6 +48,8 @@ fun SettingsScreen(
     onToggleAnimations: (Boolean) -> Unit,
     onToggleAutoUpdate: (Boolean) -> Unit,
     onToggleOfflineMode: (Boolean) -> Unit,
+    onAccentChange: (OctoAccent) -> Unit = {},
+    onToggleAnimatedBackground: (Boolean) -> Unit = {},
     onOpenOverclockClick: () -> Unit,
     onOpenMapClick: () -> Unit,
     onCheckUpdateClick: () -> Unit,
@@ -55,6 +61,7 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .background(OctoBackground)
             .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
@@ -104,7 +111,26 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(22.dp))
 
-        SectionNumberHeader(text = "/02 SISTEMA")
+        SectionNumberHeader(text = "/02 TEMA")
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        ThemeSwatchRow(
+            selected = settings.accent,
+            onSelect = onAccentChange
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        SettingsSwitchRow(
+            label = "FUNDO ANIMADO",
+            checked = settings.animatedBackgroundEnabled,
+            onCheckedChange = onToggleAnimatedBackground
+        )
+
+        Spacer(modifier = Modifier.height(22.dp))
+
+        SectionNumberHeader(text = "/03 SISTEMA")
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -425,5 +451,36 @@ private fun SettingsScreenPreview() {
             onCheckUpdateClick = {},
             onBackClick = {}
         )
+    }
+}
+
+@Composable
+private fun ThemeSwatchRow(
+    selected: OctoAccent,
+    onSelect: (OctoAccent) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OctoAccent.entries.forEach { accent ->
+            val isSelected = accent == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .background(OctoTile)
+                    .border(if (isSelected) 2.dp else 1.dp, if (isSelected) accent.color else OctoBorder)
+                    .clickable { onSelect(accent) }
+                    .pressScale(),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .background(accent.color)
+                )
+            }
+        }
     }
 }

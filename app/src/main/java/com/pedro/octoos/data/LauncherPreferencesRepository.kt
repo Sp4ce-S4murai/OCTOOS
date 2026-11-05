@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.pedro.octoos.ui.theme.OctoAccent
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -33,6 +34,9 @@ class LauncherPreferencesRepository(private val context: Context) {
     private val clockScalePercentKey = intPreferencesKey("settings_clock_scale_percent")
     private val gridAppsLimitKey = intPreferencesKey("settings_grid_apps_limit")
     private val overclockModeKey = stringPreferencesKey("settings_overclock_mode")
+    private val accentKey = stringPreferencesKey("settings_accent")
+    private val animatedBackgroundKey = booleanPreferencesKey("settings_animated_background")
+    private val onboardingDoneKey = booleanPreferencesKey("onboarding_permissions_done")
 
     private val tripActiveKey = booleanPreferencesKey("trip_is_active")
     private val tripDestinationKey = stringPreferencesKey("trip_destination")
@@ -101,6 +105,8 @@ class LauncherPreferencesRepository(private val context: Context) {
             performanceSliderFraction = prefs[performanceFractionKey] ?: defaultSlider,
             clockScalePercent = prefs[clockScalePercentKey] ?: 100,
             gridAppsLimit = prefs[gridAppsLimitKey] ?: 4,
+            accent = OctoAccent.fromKey(prefs[accentKey]),
+            animatedBackgroundEnabled = prefs[animatedBackgroundKey] ?: true,
             overclockMode = mode
         )
     }
@@ -109,7 +115,8 @@ class LauncherPreferencesRepository(private val context: Context) {
         val modeName = prefs[tripModeKey] ?: TravelMode.CARRO.name
         val mode = runCatching { TravelMode.valueOf(modeName) }.getOrDefault(TravelMode.CARRO)
         ActiveTripState(
-            isActive = prefs[tripActiveKey] ?: false,
+            // Viagem só é ativa com origem real; origem (0,0) era fallback antigo sem GPS.
+            isActive = (prefs[tripActiveKey] ?: false) && (prefs[tripOriginLatKey] ?: 0.0) != 0.0,
             destinationAddress = prefs[tripDestinationKey] ?: "",
             originLat = prefs[tripOriginLatKey] ?: 0.0,
             originLng = prefs[tripOriginLngKey] ?: 0.0,
@@ -123,6 +130,22 @@ class LauncherPreferencesRepository(private val context: Context) {
             travelMode = mode,
             routePolyline = decodeStoredPolyline(prefs[tripPolylineKey])
         )
+    }
+
+    val onboardingDoneFlow: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[onboardingDoneKey] ?: false
+    }
+
+    suspend fun markOnboardingDone() {
+        context.dataStore.edit { it[onboardingDoneKey] = true }
+    }
+
+    suspend fun setAccent(accent: OctoAccent) {
+        context.dataStore.edit { it[accentKey] = accent.key }
+    }
+
+    suspend fun setAnimatedBackgroundEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[animatedBackgroundKey] = enabled }
     }
 
     suspend fun setAnimationsEnabled(enabled: Boolean) {

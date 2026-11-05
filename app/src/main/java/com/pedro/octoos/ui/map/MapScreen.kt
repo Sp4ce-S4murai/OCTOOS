@@ -67,7 +67,12 @@ import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OrbitronFamily
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
+import com.pedro.octoos.data.TelemetryState
+import com.pedro.octoos.data.WeatherState
+import com.pedro.octoos.ui.components.OctoStatusStrip
 
 @Composable
 fun MapScreen(
@@ -81,6 +86,8 @@ fun MapScreen(
     onStopTrip: () -> Unit,
     onOpenGoogleMapsIntent: (String, TravelMode) -> Unit,
     onBackClick: () -> Unit,
+    telemetry: TelemetryState = TelemetryState(),
+    weather: WeatherState = WeatherState(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -100,6 +107,11 @@ fun MapScreen(
     fun performAddressSearch(launchExternalMaps: Boolean) {
         val query = addressQuery.trim()
         if (query.isEmpty()) return
+        // Sem GPS não há origem real: nunca traçar rota a partir de (0,0).
+        if (userLocation == null) {
+            if (launchExternalMaps) onOpenGoogleMapsIntent(query, selectedMode)
+            return
+        }
         scope.launch {
             val geocoded = LocationTracker.geocodeAddress(context, query)
             if (geocoded == null) {
@@ -136,6 +148,16 @@ fun MapScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
+        OctoStatusStrip(
+            coordsText = userLocation?.let { String.format(Locale.US, "X %.4f · Y %.4f", it.latitude, it.longitude) }
+                ?: "GPS SEM SINAL",
+            coordsActive = userLocation != null,
+            tempText = "EXT ${weather.temperatureCelsius?.let { "$it°C" } ?: "--°C"}  ·  BAT ${telemetry.tempCelsius?.let { "$it°C" } ?: "--°C"}",
+            tempHot = (telemetry.tempCelsius ?: 0) > 60
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
         if (!isOnline) {
             OfflineMapStateBox(modifier = Modifier.weight(1f))
         } else {
@@ -156,7 +178,7 @@ fun MapScreen(
                 durationLabel = activeTrip.remainingDurationLabel,
                 onSelectMode = { newMode ->
                     selectedMode = newMode
-                    if (activeTrip.isActive) {
+                    if (activeTrip.isActive && userLocation != null) {
                         scope.launch {
                             onStartRealTrip(
                                 LocationTracker.buildTripWithRoute(
@@ -186,6 +208,10 @@ fun MapScreen(
                         onActivateClick = onRequestGpsOrPermission,
                         modifier = Modifier.weight(1f)
                     )
+                }
+
+                userLocation == null -> {
+                    WaitingGpsBox(modifier = Modifier.weight(1f))
                 }
 
                 else -> {
@@ -449,6 +475,12 @@ private fun InteractiveGoogleMapBox(
     modifier: Modifier = Modifier
 ) {
     val isPreview = LocalInspectionMode.current
+    var mapLoaded by remember { mutableStateOf(false) }
+    var mapHintVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(8000L)
+        mapHintVisible = !mapLoaded
+    }
 
     Box(
         modifier = modifier
@@ -488,7 +520,8 @@ private fun InteractiveGoogleMapBox(
                     myLocationButtonEnabled = hasLocationPermission,
                     mapToolbarEnabled = true
                 ),
-                onMapClick = onMapTapNewDestination
+                onMapClick = onMapTapNewDestination,
+                onMapLoaded = { mapLoaded = true }
             ) {
                 Marker(
                     state = MarkerState(position = destination),
@@ -506,6 +539,25 @@ private fun InteractiveGoogleMapBox(
                     fillColor = Color(0xFF3A86FF),
                     strokeColor = Color.White,
                     strokeWidth = 4f
+                )
+            }
+        }
+
+        if (mapHintVisible) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(OctoBackground.copy(alpha = 0.92f))
+                    .border(1.dp, OctoLime)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "MAPA NÃO CARREGOU\nverifique o Maps SDK for Android e a chave",
+                    fontFamily = IbmPlexMonoFamily,
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    color = OctoLime,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -737,3 +789,37 @@ fun tripRoutePoints(trip: com.pedro.octoos.data.ActiveTripState, origin: com.goo
     } else {
         listOf(origin, destination)
     }
+
+@Composable
+private fun WaitingGpsBox(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, OctoBorder),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Text(
+                text = "AGUARDANDO GPS",
+                fontFamily = BebasNeueFamily,
+                fontSize = 40.sp,
+                lineHeight = 40.sp,
+                color = OctoLime,
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.5.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Buscando sua posição. A rota é traçada\nassim que o sinal chegar.",
+                fontFamily = IbmPlexMonoFamily,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
+                color = OctoGray,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}

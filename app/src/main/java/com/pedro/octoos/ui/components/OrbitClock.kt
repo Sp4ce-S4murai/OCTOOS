@@ -90,6 +90,8 @@ fun OrbitClock(
     )
 
     val timeText = String.format(Locale.ROOT, "%02d:%02d", hours24, minutes)
+    // Tipografia acompanha o tamanho do anel: relógio maior, números maiores.
+    val clockScale = ringSize.value / 236f
 
     Box(
         modifier = modifier.size(ringSize),
@@ -151,15 +153,15 @@ fun OrbitClock(
             Text(
                 text = timeText,
                 fontFamily = ShareTechMonoFamily,
-                fontSize = 33.sp,
+                fontSize = (33f * clockScale).sp,
                 color = OctoText
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height((12f * clockScale).dp))
             Text(
                 text = dateLabel.uppercase(Locale("pt", "BR")),
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
+                fontSize = (12f * clockScale).sp,
                 color = OctoLime,
                 letterSpacing = 1.7.sp
             )

@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -30,8 +31,10 @@ import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.SettingsState
 import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherState
+import com.pedro.octoos.ui.components.CyberBackground
 import com.pedro.octoos.ui.components.OctoCloudIcon
 import com.pedro.octoos.ui.components.OctoSolidIcon
+import com.pedro.octoos.ui.components.pressScale
 import com.pedro.octoos.ui.components.OrbitClock
 import com.pedro.octoos.ui.theme.BebasNeueFamily
 import com.pedro.octoos.ui.theme.ChamferedShape
@@ -70,13 +73,24 @@ fun HomeScreen(
     onOpenSettingsClick: () -> Unit = {},
     onOpenOverclockClick: () -> Unit = {}
 ) {
-    val baseRing = if (activeTrip.isActive) 196f else 224f
+    // Responsivo: o anel cresce com a largura e a altura reais da tela.
+    val config = LocalConfiguration.current
+    val screenW = config.screenWidthDp.toFloat()
+    val screenH = config.screenHeightDp.toFloat()
+    val baseRing = if (activeTrip.isActive) {
+        minOf(screenW * 0.62f, screenH * 0.30f).coerceAtMost(230f)
+    } else {
+        minOf(screenW * 0.86f, screenH * 0.42f).coerceAtMost(340f)
+    }
     val scaledRingSize = (baseRing * (settings.clockScalePercent / 100f)).dp
 
+    CyberBackground(
+        modifier = modifier.fillMaxSize(),
+        animated = settings.animationsEnabled && settings.animatedBackgroundEnabled
+    ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(OctoBackground)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -174,6 +188,7 @@ fun HomeScreen(
                 )
             }
         }
+    }
     }
 }
 
@@ -314,6 +329,7 @@ fun LimeChamferTile(
     Box(
         modifier = modifier
             .height(62.dp)
+            .pressScale()
             .clip(shape)
             .background(OctoLime)
             .clickable(onClick = onClick)

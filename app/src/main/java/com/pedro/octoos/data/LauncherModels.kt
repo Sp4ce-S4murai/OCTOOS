@@ -1,6 +1,7 @@
 package com.pedro.octoos.data
 
 import com.pedro.octoos.ui.components.OctoIconType
+import com.pedro.octoos.ui.theme.OctoAccent
 
 enum class OverclockMode(
     val label: String,
@@ -67,7 +68,9 @@ data class SettingsState(
     val performanceSliderFraction: Float = 0.54f,
     val clockScalePercent: Int = 100,
     val gridAppsLimit: Int = 4,
-    val overclockMode: OverclockMode = OverclockMode.EQUILIBRIO
+    val overclockMode: OverclockMode = OverclockMode.EQUILIBRIO,
+    val accent: OctoAccent = OctoAccent.LIME,
+    val animatedBackgroundEnabled: Boolean = true
 )
 
 data class AppEntry(
