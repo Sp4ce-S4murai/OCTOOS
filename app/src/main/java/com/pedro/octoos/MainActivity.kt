@@ -475,10 +475,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
 
         OctoRoute.CLOCK -> {
             ClockScreen(
-                hours24 = now.hour,
-                minutes = now.minute,
-                seconds = now.second,
-                dateLabel = formatPortugueseShortDate(now),
+                now = now,
                 onBackClick = { currentRoute = OctoRoute.HOME }
             )
         }
