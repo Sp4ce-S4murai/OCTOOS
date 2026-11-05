@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +35,9 @@ import com.pedro.octoos.ui.overclock.OverclockScreen
 import com.pedro.octoos.ui.settings.SettingsScreen
 import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoOSTheme
+import com.pedro.octoos.ui.update.UpdateScreen
+import com.pedro.octoos.update.GithubUpdateManager
+import com.pedro.octoos.update.UpdateReleaseInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -43,7 +47,8 @@ enum class OctoRoute {
     ALL_APPS,
     MAP,
     SETTINGS,
-    OVERCLOCK
+    OVERCLOCK,
+    UPDATE
 }
 
 class MainActivity : ComponentActivity() {
@@ -76,6 +81,9 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     val prefsRepo = remember { LauncherPreferencesRepository(context) }
 
     var currentRoute by remember { mutableStateOf(OctoRoute.HOME) }
+    var availableUpdate by remember { mutableStateOf<UpdateReleaseInfo?>(null) }
+    var bannerDismissed by remember { mutableStateOf(false) }
+    var downloadProgressPercent by remember { mutableIntStateOf(64) }
 
     val baseGridApps = remember { InstalledAppsHelper.defaultHomeGridApps() }
     val dockApps = remember { InstalledAppsHelper.defaultDockApps() }
@@ -99,6 +107,16 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     var networkConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
     val effectiveOnline = networkConnected && !storedSettings.offlineModeEnabled
+
+    // On startup with internet, query the latest GitHub Release
+    LaunchedEffect(effectiveOnline) {
+        if (effectiveOnline && availableUpdate == null) {
+            val remote = GithubUpdateManager.checkLatestRelease(forcePreviewFallback = false)
+            if (remote != null) {
+                availableUpdate = remote
+            }
+        }
+    }
 
     // Clock update loop frequency controlled by OverclockMode (Eco 5000ms, Equilíbrio 1000ms, OC 250ms)
     LaunchedEffect(tickIntervalMs) {
@@ -149,6 +167,9 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 dockApps = dockApps,
                 settings = storedSettings,
                 activeTrip = activeTrip,
+                pendingUpdate = if (!bannerDismissed) availableUpdate else null,
+                onUpdateBannerDownload = { currentRoute = OctoRoute.UPDATE },
+                onUpdateBannerLater = { bannerDismissed = true },
                 onTripClick = { currentRoute = OctoRoute.MAP },
                 onOpenSettingsClick = { currentRoute = OctoRoute.SETTINGS },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
@@ -241,7 +262,13 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
                 onOpenMapClick = { currentRoute = OctoRoute.MAP },
                 onCheckUpdateClick = {
-                    // Connects to Task 6 Update screen
+                    scope.launch {
+                        val release = GithubUpdateManager.checkLatestRelease(forcePreviewFallback = true)
+                        availableUpdate = release
+                        bannerDismissed = false
+                        downloadProgressPercent = 64
+                        currentRoute = OctoRoute.UPDATE
+                    }
                 },
                 onBackClick = { currentRoute = OctoRoute.HOME },
                 modifier = modifier
@@ -258,6 +285,28 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                     scope.launch { prefsRepo.setOverclockMode(mode) }
                 },
                 onBackClick = { currentRoute = OctoRoute.SETTINGS },
+                modifier = modifier
+            )
+        }
+
+        OctoRoute.UPDATE -> {
+            val info = availableUpdate ?: UpdateReleaseInfo()
+            UpdateScreen(
+                releaseInfo = info,
+                downloadProgressPercent = downloadProgressPercent,
+                onInstallClick = {
+                    scope.launch {
+                        GithubUpdateManager.downloadAndInstallApk(
+                            context = context,
+                            releaseInfo = info,
+                            onProgressPercent = { pct -> downloadProgressPercent = pct }
+                        )
+                    }
+                },
+                onLaterClick = {
+                    bannerDismissed = true
+                    currentRoute = OctoRoute.HOME
+                },
                 modifier = modifier
             )
         }

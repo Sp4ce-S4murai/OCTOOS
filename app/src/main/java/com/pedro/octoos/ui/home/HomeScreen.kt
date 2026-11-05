@@ -44,6 +44,8 @@ import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OrbitronFamily
+import com.pedro.octoos.ui.update.UpdateTopBanner
+import com.pedro.octoos.update.UpdateReleaseInfo
 import java.util.Locale
 
 @Composable
@@ -60,6 +62,9 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     settings: SettingsState = SettingsState(),
     activeTrip: ActiveTripState = ActiveTripState(isActive = false),
+    pendingUpdate: UpdateReleaseInfo? = null,
+    onUpdateBannerDownload: () -> Unit = {},
+    onUpdateBannerLater: () -> Unit = {},
     onTripClick: () -> Unit = {},
     onOpenSettingsClick: () -> Unit = {},
     onOpenOverclockClick: () -> Unit = {}
@@ -74,6 +79,15 @@ fun HomeScreen(
             .padding(horizontal = 20.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (pendingUpdate != null) {
+            UpdateTopBanner(
+                releaseInfo = pendingUpdate,
+                onDownloadClick = onUpdateBannerDownload,
+                onLaterClick = onUpdateBannerLater
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
         HomeTelemetryHeader(
             telemetry = telemetry,
             isOffline = weather.isOffline,
