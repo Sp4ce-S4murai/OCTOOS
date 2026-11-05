@@ -1,5 +1,6 @@
 package com.pedro.octoos.ui.map
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,7 +26,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -544,15 +549,25 @@ private fun InteractiveGoogleMapBox(
         }
 
         if (mapHintVisible) {
+            RouteFallbackCanvas(
+                origin = origin,
+                destination = destination,
+                routePoints = routePoints,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (mapHintVisible) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
                     .background(OctoBackground.copy(alpha = 0.92f))
                     .border(1.dp, OctoLime)
                     .padding(16.dp)
             ) {
                 Text(
-                    text = "MAPA NÃO CARREGOU\nverifique o Maps SDK for Android e a chave",
+                    text = "MAPA NÃO CARREGOU · ROTA EM MODO LOCAL\nverifique o Maps SDK for Android e a chave",
                     fontFamily = IbmPlexMonoFamily,
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -821,5 +836,62 @@ private fun WaitingGpsBox(modifier: Modifier = Modifier) {
                 textAlign = TextAlign.Center
             )
         }
+    }
+}
+
+@Composable
+private fun RouteFallbackCanvas(
+    origin: LatLng,
+    destination: LatLng,
+    routePoints: List<LatLng>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val allPoints = listOf(origin, destination) + routePoints
+        val minLat = allPoints.minOf { it.latitude }
+        val maxLat = allPoints.maxOf { it.latitude }
+        val minLng = allPoints.minOf { it.longitude }
+        val maxLng = allPoints.maxOf { it.longitude }
+        val cosLat = kotlin.math.cos(Math.toRadians((minLat + maxLat) / 2.0)).coerceAtLeast(0.2)
+        val spanX = ((maxLng - minLng) * cosLat).coerceAtLeast(1e-6).toFloat()
+        val spanY = (maxLat - minLat).coerceAtLeast(1e-6).toFloat()
+        val pad = 48f
+        val drawW = size.width - pad * 2
+        val drawH = size.height - pad * 2
+        val scale = minOf(drawW / spanX, drawH / spanY)
+        val offX = pad + (drawW - spanX * scale) / 2f
+        val offY = pad + (drawH - spanY * scale) / 2f
+
+        fun project(p: LatLng): Offset = Offset(
+            offX + ((p.longitude - minLng) * cosLat).toFloat() * scale,
+            offY + (maxLat - p.latitude).toFloat() * scale
+        )
+
+        drawRect(OctoBackground)
+        val step = 44.dp.toPx()
+        var gx = 0f
+        while (gx < size.width) {
+            drawLine(OctoLime.copy(alpha = 0.07f), Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
+            gx += step
+        }
+        var gy = 0f
+        while (gy < size.height) {
+            drawLine(OctoLime.copy(alpha = 0.07f), Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
+            gy += step
+        }
+
+        val dash = PathEffect.dashPathEffect(floatArrayOf(22f, 14f))
+        if (routePoints.size >= 2) {
+            val path = Path()
+            routePoints.forEachIndexed { i, p ->
+                val o = project(p)
+                if (i == 0) path.moveTo(o.x, o.y) else path.lineTo(o.x, o.y)
+            }
+            drawPath(path, OctoLime, style = Stroke(width = 9f, pathEffect = dash))
+        } else {
+            drawLine(OctoLime, project(origin), project(destination), strokeWidth = 9f, pathEffect = dash)
+        }
+        drawCircle(Color(0xFF3A86FF), 12f, project(origin))
+        drawCircle(OctoLime, 14f, project(destination))
     }
 }
