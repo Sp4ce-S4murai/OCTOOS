@@ -59,7 +59,7 @@ object InstalledAppsHelper {
         }.distinctBy { it.packageName }
 
         val internal = listOf(
-            AppEntry(label = "CONFIG", packageName = SETTINGS_PACKAGE, monogram = "CF", iconType = OctoIconType.TODOS)
+            AppEntry(label = "CONFIG", packageName = SETTINGS_PACKAGE, monogram = "CF", iconType = OctoIconType.SETTINGS)
         )
 
         return (installed + internal)
@@ -76,14 +76,70 @@ object InstalledAppsHelper {
         }
     }
 
-    private fun inferIconType(packageName: String, label: String): OctoIconType = when {
-        packageName.contains("claude", true) || label.contains("CLAUDE") -> OctoIconType.CLAUDE
-        packageName.contains("maps", true) || label.contains("MAPA") -> OctoIconType.MAPA
-        packageName.contains("whatsapp", true) -> OctoIconType.WHATSAPP
-        packageName.contains("messaging", true) || packageName.contains("mms", true) -> OctoIconType.MSGS
-        packageName.contains("camera", true) || label.contains("CÂMERA") || label.contains("ARQUIVOS") -> OctoIconType.CAMERA
-        packageName.contains("git", true) -> OctoIconType.GIT
-        else -> OctoIconType.TODOS
+    private data class IconRule(
+        val type: OctoIconType,
+        val packages: List<String> = emptyList(),
+        val labels: List<String> = emptyList()
+    )
+
+    /** Ordem importa: regras mais específicas (YouTube Music) vêm antes das genéricas. */
+    private val ICON_RULES = listOf(
+        IconRule(OctoIconType.CLAUDE, listOf("com.anthropic.claude"), listOf("CLAUDE")),
+        IconRule(OctoIconType.MAPA, listOf("com.google.android.apps.maps"), listOf("MAPA")),
+        IconRule(OctoIconType.WHATSAPP, listOf("com.whatsapp"), listOf("WHATSAPP")),
+        IconRule(
+            OctoIconType.MSGS,
+            listOf("com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms"),
+            listOf("MENSAGENS", "MESSAGES")
+        ),
+        IconRule(
+            OctoIconType.CAMERA,
+            listOf("com.android.camera", "com.google.android.googlecamera", "com.sec.android.app.camera"),
+            listOf("CÂMERA", "CAMERA")
+        ),
+        IconRule(OctoIconType.GIT, listOf("com.github.android"), listOf("GITHUB")),
+        IconRule(OctoIconType.MUSIC, listOf("com.google.android.apps.youtube.music", "com.google.android.music"), listOf("YOUTUBE MUSIC")),
+        IconRule(OctoIconType.YOUTUBE, listOf("com.google.android.youtube"), listOf("YOUTUBE")),
+        IconRule(OctoIconType.SPOTIFY, listOf("com.spotify.music"), listOf("SPOTIFY")),
+        IconRule(OctoIconType.INSTAGRAM, listOf("com.instagram.android"), listOf("INSTAGRAM")),
+        IconRule(OctoIconType.GMAIL, listOf("com.google.android.gm"), listOf("GMAIL")),
+        IconRule(OctoIconType.CHROME, listOf("com.android.chrome", "org.mozilla.firefox"), listOf("CHROME")),
+        IconRule(
+            OctoIconType.PHOTOS,
+            listOf("com.google.android.apps.photos", "com.sec.android.gallery3d", "com.android.gallery3d"),
+            listOf("FOTOS", "GALERIA", "PHOTOS", "GALLERY")
+        ),
+        IconRule(
+            OctoIconType.CALENDAR,
+            listOf("com.google.android.calendar", "com.samsung.android.calendar"),
+            listOf("AGENDA", "CALENDÁRIO", "CALENDAR")
+        ),
+        IconRule(
+            OctoIconType.NOTES,
+            listOf("com.google.android.keep", "com.samsung.android.app.notes", "com.miui.notes"),
+            listOf("NOTAS", "NOTES")
+        ),
+        IconRule(OctoIconType.TELEGRAM, listOf("org.telegram.messenger"), listOf("TELEGRAM")),
+        IconRule(OctoIconType.X, listOf("com.twitter.android", "com.x.android")),
+        IconRule(
+            OctoIconType.PHONE,
+            listOf("com.google.android.dialer", "com.samsung.android.dialer", "com.android.dialer"),
+            listOf("TELEFONE", "PHONE")
+        ),
+        IconRule(OctoIconType.SETTINGS, listOf("com.android.settings", SETTINGS_PACKAGE), listOf("CONFIGURA"))
+    )
+
+    /**
+     * Detecta o ícone temático pelo pacote (exato/contém) e, se não bater, pelo rótulo.
+     * Retorna null para apps desconhecidos: a grade mostra o monograma em vez de um ícone genérico.
+     */
+    fun inferIconType(packageName: String, label: String): OctoIconType? {
+        val pkg = packageName.lowercase(Locale.ROOT)
+        val lbl = label.uppercase(Locale("pt", "BR"))
+        return ICON_RULES.firstOrNull { rule ->
+            rule.packages.any { pkg.contains(it.lowercase(Locale.ROOT)) } ||
+                rule.labels.any { lbl.contains(it) }
+        }?.type
     }
 
     fun launchGoogleMapsNavigation(context: Context, destination: String, travelMode: TravelMode) {

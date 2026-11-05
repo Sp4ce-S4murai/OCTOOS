@@ -382,11 +382,18 @@ private fun AllAppsLimeGridTile(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            OctoSolidIcon(
-                type = entry.iconType ?: OctoIconType.TODOS,
-                size = 20.dp,
-                tint = OctoBackground
-            )
+            val tileIcon = entry.iconType
+            if (tileIcon != null) {
+                OctoSolidIcon(type = tileIcon, size = 20.dp, tint = OctoBackground)
+            } else {
+                Text(
+                    text = entry.monogram,
+                    fontFamily = IbmPlexMonoFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = OctoBackground
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = entry.label,

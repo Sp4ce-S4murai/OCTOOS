@@ -27,7 +27,20 @@ enum class OctoIconType {
     MSGS,
     CAMERA,
     GIT,
-    TODOS
+    TODOS,
+    YOUTUBE,
+    MUSIC,
+    SPOTIFY,
+    INSTAGRAM,
+    GMAIL,
+    CHROME,
+    PHOTOS,
+    CALENDAR,
+    NOTES,
+    TELEGRAM,
+    X,
+    PHONE,
+    SETTINGS
 }
 
 @Composable
@@ -45,6 +58,19 @@ fun OctoSolidIcon(
             OctoIconType.CAMERA -> drawCamera(tint)
             OctoIconType.GIT -> drawGitBranch(tint)
             OctoIconType.TODOS -> drawAllAppsGrid(tint)
+            OctoIconType.YOUTUBE -> drawYoutube(tint)
+            OctoIconType.MUSIC -> drawMusicNote(tint)
+            OctoIconType.SPOTIFY -> drawSpotify(tint)
+            OctoIconType.INSTAGRAM -> drawInstagram(tint)
+            OctoIconType.GMAIL -> drawEnvelope(tint)
+            OctoIconType.CHROME -> drawChromeRing(tint)
+            OctoIconType.PHOTOS -> drawMountains(tint)
+            OctoIconType.CALENDAR -> drawCalendar(tint)
+            OctoIconType.NOTES -> drawNotes(tint)
+            OctoIconType.TELEGRAM -> drawPaperPlane(tint)
+            OctoIconType.X -> drawCross(tint)
+            OctoIconType.PHONE -> drawPhone(tint)
+            OctoIconType.SETTINGS -> drawGear(tint)
         }
     }
 }
@@ -241,3 +267,200 @@ private fun DrawScope.drawAllAppsGrid(color: Color) {
     }
 }
 
+private fun DrawScope.drawYoutube(color: Color) {
+    val w = size.width
+    val h = size.height
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(w * 0.06f, h * 0.20f),
+        size = Size(w * 0.88f, h * 0.60f),
+        cornerRadius = CornerRadius(w * 0.18f),
+        style = Stroke(width = w * 0.11f)
+    )
+    val play = Path().apply {
+        moveTo(w * 0.42f, h * 0.36f)
+        lineTo(w * 0.64f, h * 0.50f)
+        lineTo(w * 0.42f, h * 0.64f)
+        close()
+    }
+    drawPath(play, color)
+}
+
+private fun DrawScope.drawMusicNote(color: Color) {
+    val w = size.width
+    val h = size.height
+    val stem = w * 0.10f
+    drawCircle(color, w * 0.13f, Offset(w * 0.32f, h * 0.72f))
+    drawCircle(color, w * 0.13f, Offset(w * 0.70f, h * 0.60f))
+    drawLine(color, Offset(w * 0.45f, h * 0.72f), Offset(w * 0.45f, h * 0.20f), strokeWidth = stem)
+    drawLine(color, Offset(w * 0.83f, h * 0.60f), Offset(w * 0.83f, h * 0.20f), strokeWidth = stem)
+    drawLine(color, Offset(w * 0.45f, h * 0.20f), Offset(w * 0.83f, h * 0.20f), strokeWidth = stem * 1.3f)
+}
+
+private fun DrawScope.drawSpotify(color: Color) {
+    val w = size.width
+    val h = size.height
+    val c = Offset(w * 0.5f, h * 0.5f)
+    val s = w * 0.09f
+    drawCircle(color, w * 0.44f, c, style = Stroke(width = s))
+    listOf(0.14f, 0.23f, 0.32f).forEach { r ->
+        drawArc(
+            color = color,
+            startAngle = 205f,
+            sweepAngle = 130f,
+            useCenter = false,
+            topLeft = Offset(c.x - w * r, c.y - w * r),
+            size = Size(w * r * 2f, w * r * 2f),
+            style = Stroke(width = s * 0.85f, cap = StrokeCap.Round)
+        )
+    }
+}
+
+private fun DrawScope.drawInstagram(color: Color) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.09f
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(w * 0.10f, h * 0.10f),
+        size = Size(w * 0.80f, h * 0.80f),
+        cornerRadius = CornerRadius(w * 0.22f),
+        style = Stroke(width = s)
+    )
+    drawCircle(color, w * 0.20f, Offset(w * 0.5f, h * 0.5f), style = Stroke(width = s))
+    drawCircle(color, w * 0.05f, Offset(w * 0.72f, h * 0.28f))
+}
+
+private fun DrawScope.drawEnvelope(color: Color) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.09f
+    drawRect(
+        color = color,
+        topLeft = Offset(w * 0.08f, h * 0.20f),
+        size = Size(w * 0.84f, h * 0.60f),
+        style = Stroke(width = s)
+    )
+    val flap = Path().apply {
+        moveTo(w * 0.08f, h * 0.20f)
+        lineTo(w * 0.50f, h * 0.55f)
+        lineTo(w * 0.92f, h * 0.20f)
+    }
+    drawPath(flap, color, style = Stroke(width = s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+private fun DrawScope.drawChromeRing(color: Color) {
+    val w = size.width
+    val h = size.height
+    val c = Offset(w * 0.5f, h * 0.5f)
+    drawCircle(color, w * 0.42f, c, style = Stroke(width = w * 0.10f))
+    drawCircle(color, w * 0.14f, c)
+}
+
+private fun DrawScope.drawMountains(color: Color) {
+    val w = size.width
+    val h = size.height
+    drawCircle(color, w * 0.09f, Offset(w * 0.74f, h * 0.28f))
+    val back = Path().apply {
+        moveTo(w * 0.06f, h * 0.84f)
+        lineTo(w * 0.38f, h * 0.36f)
+        lineTo(w * 0.60f, h * 0.84f)
+        close()
+    }
+    val front = Path().apply {
+        moveTo(w * 0.34f, h * 0.84f)
+        lineTo(w * 0.60f, h * 0.48f)
+        lineTo(w * 0.94f, h * 0.84f)
+        close()
+    }
+    drawPath(back, color)
+    drawPath(front, color)
+}
+
+private fun DrawScope.drawCalendar(color: Color) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.09f
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(w * 0.10f, h * 0.18f),
+        size = Size(w * 0.80f, h * 0.72f),
+        cornerRadius = CornerRadius(w * 0.08f),
+        style = Stroke(width = s)
+    )
+    drawRect(color, Offset(w * 0.10f, h * 0.18f), Size(w * 0.80f, h * 0.20f))
+    drawLine(color, Offset(w * 0.32f, h * 0.06f), Offset(w * 0.32f, h * 0.24f), strokeWidth = s, cap = StrokeCap.Round)
+    drawLine(color, Offset(w * 0.68f, h * 0.06f), Offset(w * 0.68f, h * 0.24f), strokeWidth = s, cap = StrokeCap.Round)
+    val cell = w * 0.14f
+    listOf(0.28f to 0.50f, 0.50f to 0.50f, 0.28f to 0.70f, 0.50f to 0.70f).forEach { (x, y) ->
+        drawRect(color, Offset(w * x, h * y), Size(cell, cell))
+    }
+}
+
+private fun DrawScope.drawNotes(color: Color) {
+    val w = size.width
+    val h = size.height
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(w * 0.16f, h * 0.10f),
+        size = Size(w * 0.68f, h * 0.80f),
+        cornerRadius = CornerRadius(w * 0.08f),
+        style = Stroke(width = w * 0.08f)
+    )
+    listOf(0.36f, 0.52f, 0.68f).forEach { y ->
+        drawLine(color, Offset(w * 0.30f, h * y), Offset(w * 0.70f, h * y), strokeWidth = w * 0.07f, cap = StrokeCap.Round)
+    }
+}
+
+private fun DrawScope.drawPaperPlane(color: Color) {
+    val w = size.width
+    val h = size.height
+    val plane = Path().apply {
+        moveTo(w * 0.08f, h * 0.48f)
+        lineTo(w * 0.92f, h * 0.12f)
+        lineTo(w * 0.74f, h * 0.88f)
+        lineTo(w * 0.48f, h * 0.66f)
+        lineTo(w * 0.36f, h * 0.84f)
+        lineTo(w * 0.36f, h * 0.60f)
+        lineTo(w * 0.78f, h * 0.26f)
+        lineTo(w * 0.32f, h * 0.56f)
+        close()
+    }
+    drawPath(plane, color)
+}
+
+private fun DrawScope.drawCross(color: Color) {
+    val w = size.width
+    val h = size.height
+    val s = w * 0.13f
+    drawLine(color, Offset(w * 0.18f, h * 0.18f), Offset(w * 0.82f, h * 0.82f), strokeWidth = s, cap = StrokeCap.Round)
+    drawLine(color, Offset(w * 0.82f, h * 0.18f), Offset(w * 0.18f, h * 0.82f), strokeWidth = s, cap = StrokeCap.Round)
+}
+
+private fun DrawScope.drawPhone(color: Color) {
+    val w = size.width
+    val h = size.height
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(w * 0.28f, h * 0.08f),
+        size = Size(w * 0.44f, h * 0.84f),
+        cornerRadius = CornerRadius(w * 0.09f),
+        style = Stroke(width = w * 0.08f)
+    )
+    drawCircle(color, w * 0.05f, Offset(w * 0.5f, h * 0.78f))
+}
+
+private fun DrawScope.drawGear(color: Color) {
+    val w = size.width
+    val h = size.height
+    val c = Offset(w * 0.5f, h * 0.5f)
+    val s = w * 0.13f
+    drawCircle(color, w * 0.26f, c, style = Stroke(width = s))
+    drawCircle(color, w * 0.09f, c)
+    for (deg in 0 until 360 step 45) {
+        val a = Math.toRadians(deg.toDouble())
+        val start = Offset(c.x + (w * 0.30f * cos(a)).toFloat(), c.y + (w * 0.30f * sin(a)).toFloat())
+        val end = Offset(c.x + (w * 0.46f * cos(a)).toFloat(), c.y + (w * 0.46f * sin(a)).toFloat())
+        drawLine(color, start, end, strokeWidth = s, cap = StrokeCap.Round)
+    }
+}
