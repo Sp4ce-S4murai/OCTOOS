@@ -42,6 +42,9 @@ val computedVersionName = "$versionMajor.$versionMinor"
 val mapsApiKey = localProps.getProperty("MAPS_API_KEY")
     ?: System.getenv("MAPS_API_KEY")
     ?: ""
+val githubRepo = localProps.getProperty("GITHUB_REPO")
+    ?: System.getenv("GITHUB_REPOSITORY")
+    ?: "Polvolox/octoos"
 
 android {
     namespace = "com.pedro.octoos"
@@ -56,7 +59,7 @@ android {
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
-        buildConfigField("String", "GITHUB_REPO", "\"pedro/octoos\"")
+        buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
     }
 
     signingConfigs {
