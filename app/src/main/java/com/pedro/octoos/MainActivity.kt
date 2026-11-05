@@ -1,7 +1,9 @@
 package com.pedro.octoos
 
 import android.Manifest
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -30,6 +32,7 @@ import com.pedro.octoos.data.ActiveTripState
 import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.LauncherPreferencesRepository
 import com.pedro.octoos.data.LocationTracker
+import com.pedro.octoos.data.MediaSessionRepository
 import com.pedro.octoos.data.SettingsState
 import com.pedro.octoos.data.SystemSnapshot
 import com.pedro.octoos.data.SystemTelemetry
@@ -37,9 +40,11 @@ import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherRepository
 import com.pedro.octoos.data.WeatherState
 import com.pedro.octoos.ui.allapps.AllAppsScreen
+import com.pedro.octoos.ui.clock.ClockScreen
 import com.pedro.octoos.ui.components.OctoIconType
 import com.pedro.octoos.ui.components.formatPortugueseShortDate
 import com.pedro.octoos.ui.home.HomeScreen
+import com.pedro.octoos.ui.lock.LockScreenActivity
 import com.pedro.octoos.ui.map.MapScreen
 import com.pedro.octoos.ui.overclock.OverclockScreen
 import com.pedro.octoos.ui.settings.SettingsScreen
@@ -47,6 +52,7 @@ import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoPalette
 import com.pedro.octoos.ui.update.UpdateScreen
+import com.pedro.octoos.ui.weather.WeatherDetailScreen
 import com.pedro.octoos.update.GithubUpdateManager
 import com.pedro.octoos.update.UpdateCheckResult
 import com.pedro.octoos.update.UpdateReleaseInfo
@@ -62,7 +68,9 @@ enum class OctoRoute {
     MAP,
     SETTINGS,
     OVERCLOCK,
-    UPDATE
+    UPDATE,
+    CLOCK,
+    WEATHER
 }
 
 private const val WEATHER_REFRESH_MS = 30 * 60_000L
@@ -115,6 +123,8 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     var system by remember { mutableStateOf(SystemSnapshot(null, null, null)) }
     var networkConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
     var now by remember { mutableStateOf(LocalDateTime.now()) }
+    var mediaAccess by remember { mutableStateOf(false) }
+    val nowPlaying by MediaSessionRepository.state.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -199,6 +209,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         while (true) {
             now = LocalDateTime.now()
             networkConnected = InstalledAppsHelper.isNetworkConnected(context)
+            mediaAccess = MediaSessionRepository.isListenerEnabled(context)
             hasLocationPermission = LocationTracker.hasLocationPermission(context)
             isGpsEnabled = LocationTracker.isGpsProviderEnabled(context)
             if (hasLocationPermission && isGpsEnabled) {
@@ -311,6 +322,12 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 onGpsHeaderClick = { requestGpsOrLocationPermission() },
                 onOpenSettingsClick = { currentRoute = OctoRoute.SETTINGS },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
+                onClockClick = { currentRoute = OctoRoute.CLOCK },
+                onWeatherClick = { currentRoute = OctoRoute.WEATHER },
+                nowPlaying = nowPlaying,
+                onMediaPlayPause = { MediaSessionRepository.togglePlayPause() },
+                onMediaNext = { MediaSessionRepository.next() },
+                onMediaPrevious = { MediaSessionRepository.previous() },
                 onAppClick = { entry ->
                     when {
                         entry.packageName == InstalledAppsHelper.ALL_APPS_PACKAGE -> {
@@ -410,6 +427,15 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
                 onOpenMapClick = { currentRoute = OctoRoute.MAP },
+                mediaAccessGranted = mediaAccess,
+                onOpenMediaAccess = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                },
+                onOpenLockScreen = {
+                    context.startActivity(Intent(context, LockScreenActivity::class.java))
+                },
                 onCheckUpdateClick = {
                     scope.launch {
                         when (val result = GithubUpdateManager.checkLatestRelease()) {
@@ -444,6 +470,26 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 },
                 onBackClick = { currentRoute = OctoRoute.SETTINGS },
                 modifier = modifier
+            )
+        }
+
+        OctoRoute.CLOCK -> {
+            ClockScreen(
+                hours24 = now.hour,
+                minutes = now.minute,
+                seconds = now.second,
+                dateLabel = formatPortugueseShortDate(now),
+                onBackClick = { currentRoute = OctoRoute.HOME }
+            )
+        }
+
+        OctoRoute.WEATHER -> {
+            WeatherDetailScreen(
+                weather = weatherForHome,
+                latitude = liveLocation?.latitude,
+                longitude = liveLocation?.longitude,
+                isOnline = effectiveOnline,
+                onBackClick = { currentRoute = OctoRoute.HOME }
             )
         }
 

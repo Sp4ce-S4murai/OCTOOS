@@ -52,6 +52,9 @@ fun SettingsScreen(
     onToggleAnimatedBackground: (Boolean) -> Unit = {},
     onOpenOverclockClick: () -> Unit,
     onOpenMapClick: () -> Unit,
+    mediaAccessGranted: Boolean = false,
+    onOpenMediaAccess: () -> Unit = {},
+    onOpenLockScreen: () -> Unit = {},
     onCheckUpdateClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -157,6 +160,18 @@ fun SettingsScreen(
             label = "MAPA",
             value = "GOOGLE MAPS",
             onClick = onOpenMapClick
+        )
+
+        SettingsValueRow(
+            label = "TELA DE BLOQUEIO",
+            value = "ABRIR",
+            onClick = onOpenLockScreen
+        )
+
+        SettingsValueRow(
+            label = "ACESSO À MÍDIA",
+            value = if (mediaAccessGranted) "ATIVO" else "ATIVAR",
+            onClick = onOpenMediaAccess
         )
 
         SettingsValueRow(

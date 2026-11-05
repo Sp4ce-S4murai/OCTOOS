@@ -32,6 +32,8 @@ import com.pedro.octoos.data.SettingsState
 import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherState
 import com.pedro.octoos.ui.components.CyberBackground
+import com.pedro.octoos.data.MediaInfo
+import com.pedro.octoos.ui.media.NowPlayingBar
 import com.pedro.octoos.ui.components.OctoCloudIcon
 import com.pedro.octoos.ui.components.OctoSolidIcon
 import com.pedro.octoos.ui.components.pressScale
@@ -71,7 +73,13 @@ fun HomeScreen(
     onTripClick: () -> Unit = {},
     onGpsHeaderClick: () -> Unit = {},
     onOpenSettingsClick: () -> Unit = {},
-    onOpenOverclockClick: () -> Unit = {}
+    onOpenOverclockClick: () -> Unit = {},
+    onClockClick: () -> Unit = {},
+    onWeatherClick: () -> Unit = {},
+    nowPlaying: MediaInfo? = null,
+    onMediaPlayPause: () -> Unit = {},
+    onMediaNext: () -> Unit = {},
+    onMediaPrevious: () -> Unit = {}
 ) {
     // Responsivo: o anel cresce com a largura e a altura reais da tela.
     val config = LocalConfiguration.current
@@ -118,6 +126,7 @@ fun HomeScreen(
             minutes = minutes,
             seconds = seconds,
             dateLabel = dateLabel,
+            modifier = Modifier.clickable(onClick = onClockClick),
             ringSize = scaledRingSize,
             orbitMode = settings.orbitModeEnabled,
             animationsEnabled = settings.animationsEnabled,
@@ -133,7 +142,19 @@ fun HomeScreen(
                 onClick = onTripClick
             )
         } else {
-            WeatherReadout(weather = weather)
+            Box(modifier = Modifier.clickable(onClick = onWeatherClick)) {
+                WeatherReadout(weather = weather)
+            }
+        }
+
+        nowPlaying?.let { info ->
+            NowPlayingBar(
+                info = info,
+                onPlayPause = onMediaPlayPause,
+                onNext = onMediaNext,
+                onPrevious = onMediaPrevious
+            )
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         Spacer(modifier = Modifier.weight(1f))
