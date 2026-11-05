@@ -41,41 +41,44 @@ class LauncherPreferencesRepository(private val context: Context) {
     private val tripOriginLngKey = doublePreferencesKey("trip_origin_lng")
     private val tripDestLatKey = doublePreferencesKey("trip_dest_lat")
     private val tripDestLngKey = doublePreferencesKey("trip_dest_lng")
-    private val tripDistanceKmKey = stringPreferencesKey("trip_distance_km")
+    private val tripDistanceKey = stringPreferencesKey("trip_distance")
     private val tripDurationKey = stringPreferencesKey("trip_duration")
     private val tripNextStepKey = stringPreferencesKey("trip_next_step")
+    private val tripInstructionKey = stringPreferencesKey("trip_instruction")
     private val tripArrivalKey = stringPreferencesKey("trip_arrival")
+    private val tripPolylineKey = stringPreferencesKey("trip_polyline")
 
     fun launchCountsFlow(packageNames: List<String>): Flow<Map<String, Int>> {
         return context.dataStore.data.map { prefs ->
-            packageNames.associateWith { pkg ->
-                prefs[launchCountKey(pkg)] ?: defaultSeedCount(pkg)
-            }
+            packageNames.associateWith { pkg -> prefs[launchCountKey(pkg)] ?: 0 }
         }
     }
 
     suspend fun incrementLaunchCount(packageName: String) {
         context.dataStore.edit { prefs ->
             val key = launchCountKey(packageName)
-            val current = prefs[key] ?: defaultSeedCount(packageName)
-            prefs[key] = current + 1
+            prefs[key] = (prefs[key] ?: 0) + 1
         }
     }
 
+    suspend fun saveWeather(reading: WeatherReading) {
+        context.dataStore.edit {
+            it[weatherTempKey] = reading.temperatureCelsius
+            it[weatherHumidityKey] = reading.humidityPercent
+            it[weatherWindKey] = reading.windKmh
+            it[weatherUpdatedEpochKey] = System.currentTimeMillis()
+        }
+    }
+
+    /** Último clima obtido. Sem leitura salva, os campos ficam nulos. */
     val weatherFlow: Flow<WeatherState> = context.dataStore.data.map { prefs ->
-        val temp = prefs[weatherTempKey] ?: 24
-        val humidity = prefs[weatherHumidityKey] ?: 61
-        val wind = prefs[weatherWindKey] ?: 12
-        val updatedAt = prefs[weatherUpdatedEpochKey] ?: System.currentTimeMillis()
-        val elapsedHours = ((System.currentTimeMillis() - updatedAt) / 3_600_000L)
-            .toInt()
-            .coerceAtLeast(1)
+        val updatedAt = prefs[weatherUpdatedEpochKey]
         WeatherState(
-            temperatureCelsius = temp,
-            humidityPercent = humidity,
-            windKmh = wind,
+            temperatureCelsius = prefs[weatherTempKey],
+            humidityPercent = prefs[weatherHumidityKey],
+            windKmh = prefs[weatherWindKey],
             isOffline = false,
-            hoursSinceUpdate = elapsedHours
+            updatedAtEpochMs = updatedAt
         )
     }
 
@@ -103,25 +106,22 @@ class LauncherPreferencesRepository(private val context: Context) {
     }
 
     val activeTripFlow: Flow<ActiveTripState> = context.dataStore.data.map { prefs ->
-        val isActive = prefs[tripActiveKey] ?: false
-        val destination = prefs[tripDestinationKey] ?: "Av. Independência"
         val modeName = prefs[tripModeKey] ?: TravelMode.CARRO.name
         val mode = runCatching { TravelMode.valueOf(modeName) }.getOrDefault(TravelMode.CARRO)
-        val isWalking = mode == TravelMode.A_PE
-
         ActiveTripState(
-            isActive = isActive,
-            destinationAddress = destination,
-            originLat = prefs[tripOriginLatKey] ?: -23.5505,
-            originLng = prefs[tripOriginLngKey] ?: -46.6333,
-            destinationLat = prefs[tripDestLatKey] ?: -23.5681,
-            destinationLng = prefs[tripDestLngKey] ?: -46.6492,
-            arrivalTimeLabel = prefs[tripArrivalKey] ?: if (isWalking) "14:48" else "14:21",
-            nextManeuverDistanceLabel = prefs[tripNextStepKey] ?: if (isWalking) "120 M" else "300 M",
-            remainingDurationLabel = prefs[tripDurationKey] ?: if (isWalking) "38 min" else "12 min",
-            maneuverInstruction = "Vire à direita · $destination",
-            remainingDistanceKmLabel = prefs[tripDistanceKmKey] ?: if (isWalking) "2,8 km" else "4,2 km",
-            travelMode = mode
+            isActive = prefs[tripActiveKey] ?: false,
+            destinationAddress = prefs[tripDestinationKey] ?: "",
+            originLat = prefs[tripOriginLatKey] ?: 0.0,
+            originLng = prefs[tripOriginLngKey] ?: 0.0,
+            destinationLat = prefs[tripDestLatKey] ?: 0.0,
+            destinationLng = prefs[tripDestLngKey] ?: 0.0,
+            arrivalTimeLabel = prefs[tripArrivalKey] ?: "--:--",
+            nextManeuverDistanceLabel = prefs[tripNextStepKey] ?: "--",
+            remainingDurationLabel = prefs[tripDurationKey] ?: "--",
+            maneuverInstruction = prefs[tripInstructionKey] ?: "",
+            remainingDistanceKmLabel = prefs[tripDistanceKey] ?: "--",
+            travelMode = mode,
+            routePolyline = decodeStoredPolyline(prefs[tripPolylineKey])
         )
     }
 
@@ -173,10 +173,12 @@ class LauncherPreferencesRepository(private val context: Context) {
             it[tripOriginLngKey] = trip.originLng
             it[tripDestLatKey] = trip.destinationLat
             it[tripDestLngKey] = trip.destinationLng
-            it[tripDistanceKmKey] = trip.remainingDistanceKmLabel
+            it[tripDistanceKey] = trip.remainingDistanceKmLabel
             it[tripDurationKey] = trip.remainingDurationLabel
             it[tripNextStepKey] = trip.nextManeuverDistanceLabel
+            it[tripInstructionKey] = trip.maneuverInstruction
             it[tripArrivalKey] = trip.arrivalTimeLabel
+            it[tripPolylineKey] = encodeStoredPolyline(trip.routePolyline)
         }
     }
 
@@ -189,12 +191,16 @@ class LauncherPreferencesRepository(private val context: Context) {
     private fun launchCountKey(packageName: String) =
         intPreferencesKey("launch_count_$packageName")
 
-    private fun defaultSeedCount(packageName: String): Int = when {
-        packageName.contains("whatsapp", ignoreCase = true) -> 42
-        packageName.contains("camera", ignoreCase = true) -> 18
-        packageName.contains("git", ignoreCase = true) -> 9
-        packageName.contains("maps", ignoreCase = true) -> 4
-        packageName.contains("claude", ignoreCase = true) -> 3
-        else -> 2
+    private fun encodeStoredPolyline(points: List<Pair<Double, Double>>): String =
+        points.joinToString(";") { "${it.first},${it.second}" }
+
+    private fun decodeStoredPolyline(raw: String?): List<Pair<Double, Double>> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return raw.split(";").mapNotNull { pair ->
+            val parts = pair.split(",")
+            val lat = parts.getOrNull(0)?.toDoubleOrNull()
+            val lng = parts.getOrNull(1)?.toDoubleOrNull()
+            if (lat != null && lng != null) Pair(lat, lng) else null
+        }
     }
 }

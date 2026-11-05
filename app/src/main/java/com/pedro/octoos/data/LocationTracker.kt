@@ -114,6 +114,55 @@ object LocationTracker {
     }
 
     /**
+     * Monta a viagem com rota real (Directions API). Se a API não responder,
+     * usa a estimativa em linha reta e o traçado reto entre origem e destino.
+     */
+    suspend fun buildTripWithRoute(
+        origin: LatLng,
+        destination: ResolvedDestination,
+        travelMode: TravelMode
+    ): ActiveTripState = withContext(Dispatchers.IO) {
+        val route = DirectionsRepository.fetchRoute(
+            originLat = origin.latitude,
+            originLng = origin.longitude,
+            destLat = destination.latLng.latitude,
+            destLng = destination.latLng.longitude,
+            travelMode = travelMode
+        ) ?: return@withContext buildRealTripState(origin, destination, travelMode)
+
+        val eta = LocalTime.now().plusSeconds(route.durationSeconds.toLong())
+            .format(DateTimeFormatter.ofPattern("HH:mm"))
+        val durationMin = (route.durationSeconds / 60).coerceAtLeast(1)
+        val durationFormatted = if (durationMin >= 60) {
+            "${durationMin / 60}h ${durationMin % 60}m"
+        } else {
+            "$durationMin min"
+        }
+        val firstStepFormatted = if (route.firstStepMeters < 1000) {
+            "${route.firstStepMeters} M"
+        } else {
+            String.format(Locale("pt", "BR"), "%.1f KM", route.firstStepMeters / 1000f)
+        }
+        val instruction = route.firstStepInstruction.ifBlank { destination.formattedName }
+
+        ActiveTripState(
+            isActive = true,
+            destinationAddress = destination.formattedName,
+            originLat = origin.latitude,
+            originLng = origin.longitude,
+            destinationLat = destination.latLng.latitude,
+            destinationLng = destination.latLng.longitude,
+            arrivalTimeLabel = eta,
+            nextManeuverDistanceLabel = firstStepFormatted,
+            remainingDurationLabel = durationFormatted,
+            maneuverInstruction = instruction,
+            remainingDistanceKmLabel = String.format(Locale("pt", "BR"), "%.1f km", route.distanceMeters / 1000f),
+            travelMode = travelMode,
+            routePolyline = route.points
+        )
+    }
+
+    /**
      * Builds an ActiveTripState with real distance, duration, and ETA computed between origin and destination.
      */
     fun buildRealTripState(

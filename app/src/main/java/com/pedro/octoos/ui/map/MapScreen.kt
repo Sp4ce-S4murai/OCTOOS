@@ -102,22 +102,19 @@ fun MapScreen(
         if (query.isEmpty()) return
         scope.launch {
             val geocoded = LocationTracker.geocodeAddress(context, query)
-            if (geocoded == null && query.length > 2 && query.equals("rua xyz", ignoreCase = true)) {
+            if (geocoded == null) {
                 noAddressResults = true
                 return@launch
             }
             noAddressResults = false
-            val target = geocoded ?: ResolvedDestination(
-                formattedName = query,
-                latLng = LatLng(currentOrigin.latitude - 0.014, currentOrigin.longitude - 0.012)
+            resolvedDestLatLng = geocoded.latLng
+            onStartRealTrip(
+                LocationTracker.buildTripWithRoute(
+                    origin = currentOrigin,
+                    destination = geocoded,
+                    travelMode = selectedMode
+                )
             )
-            resolvedDestLatLng = target.latLng
-            val computedTrip = LocationTracker.buildRealTripState(
-                origin = currentOrigin,
-                destination = target,
-                travelMode = selectedMode
-            )
-            onStartRealTrip(computedTrip)
             if (launchExternalMaps) {
                 onOpenGoogleMapsIntent(query, selectedMode)
             }
@@ -159,16 +156,19 @@ fun MapScreen(
                 durationLabel = activeTrip.remainingDurationLabel,
                 onSelectMode = { newMode ->
                     selectedMode = newMode
-                    val updatedTrip = LocationTracker.buildRealTripState(
-                        origin = currentOrigin,
-                        destination = ResolvedDestination(
-                            formattedName = addressQuery.ifBlank { "Av. Independência" },
-                            latLng = resolvedDestLatLng
-                        ),
-                        travelMode = newMode
-                    )
                     if (activeTrip.isActive) {
-                        onStartRealTrip(updatedTrip)
+                        scope.launch {
+                            onStartRealTrip(
+                                LocationTracker.buildTripWithRoute(
+                                    origin = currentOrigin,
+                                    destination = ResolvedDestination(
+                                        formattedName = addressQuery.ifBlank { activeTrip.destinationAddress },
+                                        latLng = resolvedDestLatLng
+                                    ),
+                                    travelMode = newMode
+                                )
+                            )
+                        }
                     }
                 }
             )
@@ -192,20 +192,24 @@ fun MapScreen(
                     InteractiveGoogleMapBox(
                         origin = currentOrigin,
                         destination = resolvedDestLatLng,
-                        destinationLabel = addressQuery.ifBlank { "Av. Independência" },
+                        destinationLabel = addressQuery.ifBlank { activeTrip.destinationAddress },
+                        routePoints = tripRoutePoints(activeTrip, currentOrigin, resolvedDestLatLng),
                         nextManeuverDistance = activeTrip.nextManeuverDistanceLabel,
                         hasLocationPermission = hasLocationPermission,
                         onMapTapNewDestination = { tappedLatLng ->
                             resolvedDestLatLng = tappedLatLng
-                            val tappedTrip = LocationTracker.buildRealTripState(
-                                origin = currentOrigin,
-                                destination = ResolvedDestination(
-                                    formattedName = addressQuery.ifBlank { "Ponto no Mapa" },
-                                    latLng = tappedLatLng
-                                ),
-                                travelMode = selectedMode
-                            )
-                            onStartRealTrip(tappedTrip)
+                            scope.launch {
+                                onStartRealTrip(
+                                    LocationTracker.buildTripWithRoute(
+                                        origin = currentOrigin,
+                                        destination = ResolvedDestination(
+                                            formattedName = "Ponto no mapa",
+                                            latLng = tappedLatLng
+                                        ),
+                                        travelMode = selectedMode
+                                    )
+                                )
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -438,18 +442,13 @@ private fun InteractiveGoogleMapBox(
     origin: LatLng,
     destination: LatLng,
     destinationLabel: String,
+    routePoints: List<LatLng>,
     nextManeuverDistance: String,
     hasLocationPermission: Boolean,
     onMapTapNewDestination: (LatLng) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isPreview = LocalInspectionMode.current
-    val midPoint = remember(origin, destination) {
-        LatLng(
-            (origin.latitude + destination.latitude) / 2.0 + 0.0025,
-            (origin.longitude + destination.longitude) / 2.0 - 0.0018
-        )
-    }
 
     Box(
         modifier = modifier
@@ -496,7 +495,7 @@ private fun InteractiveGoogleMapBox(
                     title = destinationLabel
                 )
                 Polyline(
-                    points = listOf(origin, midPoint, destination),
+                    points = routePoints,
                     color = OctoLime,
                     width = 9f,
                     pattern = listOf(Dash(22f), Gap(14f))
@@ -730,3 +729,11 @@ private fun MapScreenOfflinePreview() {
         )
     }
 }
+
+/** Pontos da rota real; sem rota, desenha a linha reta entre origem e destino. */
+fun tripRoutePoints(trip: com.pedro.octoos.data.ActiveTripState, origin: com.google.android.gms.maps.model.LatLng, destination: com.google.android.gms.maps.model.LatLng): List<com.google.android.gms.maps.model.LatLng> =
+    if (trip.routePolyline.size >= 2) {
+        trip.routePolyline.map { com.google.android.gms.maps.model.LatLng(it.first, it.second) }
+    } else {
+        listOf(origin, destination)
+    }

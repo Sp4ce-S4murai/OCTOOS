@@ -457,7 +457,7 @@ private fun AppUsageListRow(
 
             // Open count on the right ("HOJE · 42×")
             Text(
-                text = "${entry.recencyLabel} · ${entry.launchCount}×",
+                text = "${entry.launchCount}×",
                 fontFamily = IbmPlexMonoFamily,
                 fontSize = 10.sp,
                 color = OctoGray,
@@ -549,7 +549,7 @@ private fun normalizeForSearch(input: String): String {
 private fun AllAppsAzPreview() {
     OctoOSTheme {
         AllAppsScreen(
-            apps = InstalledAppsHelper.defaultCatalogApps(),
+            apps = InstalledAppsHelper.defaultHomeGridApps(),
             dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},
@@ -569,7 +569,7 @@ private fun AllAppsAzPreview() {
 private fun AllAppsUsagePreview() {
     OctoOSTheme {
         AllAppsScreen(
-            apps = InstalledAppsHelper.defaultCatalogApps(),
+            apps = InstalledAppsHelper.defaultHomeGridApps(),
             dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},
@@ -589,7 +589,7 @@ private fun AllAppsUsagePreview() {
 private fun AllAppsEmptyPreview() {
     OctoOSTheme {
         AllAppsScreen(
-            apps = InstalledAppsHelper.defaultCatalogApps(),
+            apps = InstalledAppsHelper.defaultHomeGridApps(),
             dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},

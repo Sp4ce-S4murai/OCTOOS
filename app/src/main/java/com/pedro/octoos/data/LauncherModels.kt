@@ -8,10 +8,7 @@ enum class OverclockMode(
     val animationsEnabled: Boolean,
     val animationDurationMs: Int,
     val preloadedAppsCount: Int,
-    val clockUpdateIntervalMs: Long,
-    val baseCpuPercent: Int,
-    val baseRamPercent: Int,
-    val baseTempCelsius: Int
+    val clockUpdateIntervalMs: Long
 ) {
     ECO(
         label = "ECO",
@@ -19,10 +16,7 @@ enum class OverclockMode(
         animationsEnabled = false,
         animationDurationMs = 0,
         preloadedAppsCount = 4,
-        clockUpdateIntervalMs = 5000L,
-        baseCpuPercent = 28,
-        baseRamPercent = 40,
-        baseTempCelsius = 43
+        clockUpdateIntervalMs = 5000L
     ),
     EQUILIBRIO(
         label = "EQUILÍBRIO",
@@ -30,10 +24,7 @@ enum class OverclockMode(
         animationsEnabled = true,
         animationDurationMs = 900,
         preloadedAppsCount = 8,
-        clockUpdateIntervalMs = 1000L,
-        baseCpuPercent = 50,
-        baseRamPercent = 50,
-        baseTempCelsius = 52
+        clockUpdateIntervalMs = 1000L
     ),
     OC(
         label = "OC",
@@ -41,31 +32,29 @@ enum class OverclockMode(
         animationsEnabled = true,
         animationDurationMs = 350,
         preloadedAppsCount = 16,
-        clockUpdateIntervalMs = 250L,
-        baseCpuPercent = 90,
-        baseRamPercent = 50,
-        baseTempCelsius = 78
+        clockUpdateIntervalMs = 250L
     )
 }
 
-enum class TravelMode(val label: String, val mapsModeCode: String) {
-    CARRO("CARRO", "d"),
-    A_PE("A PÉ", "w")
+enum class TravelMode(val label: String, val mapsModeCode: String, val directionsMode: String) {
+    CARRO("CARRO", "d", "driving"),
+    A_PE("A PÉ", "w", "walking")
 }
 
 data class ActiveTripState(
     val isActive: Boolean = false,
-    val destinationAddress: String = "Av. Independência",
-    val originLat: Double = -23.5505,
-    val originLng: Double = -46.6333,
-    val destinationLat: Double = -23.5681,
-    val destinationLng: Double = -46.6492,
-    val arrivalTimeLabel: String = "14:21",
-    val nextManeuverDistanceLabel: String = "300 M",
-    val remainingDurationLabel: String = "12 min",
-    val maneuverInstruction: String = "Vire à direita · Av. Independência",
-    val remainingDistanceKmLabel: String = "4,2 km",
-    val travelMode: TravelMode = TravelMode.CARRO
+    val destinationAddress: String = "",
+    val originLat: Double = 0.0,
+    val originLng: Double = 0.0,
+    val destinationLat: Double = 0.0,
+    val destinationLng: Double = 0.0,
+    val arrivalTimeLabel: String = "--:--",
+    val nextManeuverDistanceLabel: String = "--",
+    val remainingDurationLabel: String = "--",
+    val maneuverInstruction: String = "",
+    val remainingDistanceKmLabel: String = "--",
+    val travelMode: TravelMode = TravelMode.CARRO,
+    val routePolyline: List<Pair<Double, Double>> = emptyList()
 )
 
 data class SettingsState(
@@ -78,12 +67,8 @@ data class SettingsState(
     val performanceSliderFraction: Float = 0.54f,
     val clockScalePercent: Int = 100,
     val gridAppsLimit: Int = 4,
-    val overclockMode: OverclockMode = OverclockMode.EQUILIBRIO,
-    val simulatedTempOverride: Int? = null
-) {
-    val effectiveCpuTemp: Int
-        get() = simulatedTempOverride ?: overclockMode.baseTempCelsius
-}
+    val overclockMode: OverclockMode = OverclockMode.EQUILIBRIO
+)
 
 data class AppEntry(
     val label: String,
@@ -91,23 +76,27 @@ data class AppEntry(
     val monogram: String,
     val iconType: OctoIconType? = null,
     val launchCount: Int = 0,
-    val usageRatio: Float = 0.5f,
+    val usageRatio: Float = 0.15f,
     val firstInstallTime: Long = 0L,
-    val recencyLabel: String = "HOJE"
+    val recencyLabel: String = ""
 )
 
+/** Clima real vindo da API; campos nulos enquanto não houver leitura. */
 data class WeatherState(
-    val temperatureCelsius: Int = 24,
-    val humidityPercent: Int = 61,
-    val windKmh: Int = 12,
+    val temperatureCelsius: Int? = null,
+    val humidityPercent: Int? = null,
+    val windKmh: Int? = null,
     val isOffline: Boolean = false,
-    val hoursSinceUpdate: Int = 2
+    val updatedAtEpochMs: Long? = null,
+    val hoursSinceUpdate: Int? = null
 )
 
+/** Telemetria real do aparelho. Nulos quando o dado não está disponível. */
 data class TelemetryState(
-    val latitude: Double = 36.1749,
-    val longitude: Double = -86.6676,
-    val hasGpsFix: Boolean = true,
-    val isGpsEnabled: Boolean = true,
-    val cpuTempCelsius: Int = 52
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val isGpsEnabled: Boolean = false,
+    val tempCelsius: Int? = null,
+    val cpuPercent: Int? = null,
+    val ramPercent: Int? = null
 )

@@ -133,9 +133,10 @@ fun SettingsScreen(
             onClick = onOpenMapClick
         )
 
-        SettingsActionRow(
-            label = "SOBRE   >",
-            onClick = onOpenOverclockClick
+        SettingsValueRow(
+            label = "VERSÃO",
+            value = com.pedro.octoos.BuildConfig.VERSION_NAME,
+            onClick = {}
         )
 
         Spacer(modifier = Modifier.weight(1f))

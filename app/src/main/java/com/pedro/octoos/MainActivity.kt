@@ -2,6 +2,7 @@ package com.pedro.octoos
 
 import android.Manifest
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,7 +31,10 @@ import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.LauncherPreferencesRepository
 import com.pedro.octoos.data.LocationTracker
 import com.pedro.octoos.data.SettingsState
+import com.pedro.octoos.data.SystemSnapshot
+import com.pedro.octoos.data.SystemTelemetry
 import com.pedro.octoos.data.TelemetryState
+import com.pedro.octoos.data.WeatherRepository
 import com.pedro.octoos.data.WeatherState
 import com.pedro.octoos.ui.allapps.AllAppsScreen
 import com.pedro.octoos.ui.components.OctoIconType
@@ -42,9 +47,12 @@ import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.update.UpdateScreen
 import com.pedro.octoos.update.GithubUpdateManager
+import com.pedro.octoos.update.UpdateCheckResult
 import com.pedro.octoos.update.UpdateReleaseInfo
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 
 enum class OctoRoute {
@@ -55,6 +63,10 @@ enum class OctoRoute {
     OVERCLOCK,
     UPDATE
 }
+
+private const val WEATHER_REFRESH_MS = 30 * 60_000L
+private const val WEATHER_CHECK_EVERY_MS = 60_000L
+private const val SYSTEM_SAMPLE_MS = 2_000L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,7 +100,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     var currentRoute by remember { mutableStateOf(OctoRoute.HOME) }
     var availableUpdate by remember { mutableStateOf<UpdateReleaseInfo?>(null) }
     var bannerDismissed by remember { mutableStateOf(false) }
-    var downloadProgressPercent by remember { mutableIntStateOf(64) }
+    var downloadProgressPercent by remember { mutableIntStateOf(0) }
 
     var hasLocationPermission by remember {
         mutableStateOf(LocationTracker.hasLocationPermission(context))
@@ -99,6 +111,9 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     var liveLocation by remember {
         mutableStateOf<LatLng?>(LocationTracker.readCurrentLocation(context))
     }
+    var system by remember { mutableStateOf(SystemSnapshot(null, null, null)) }
+    var networkConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -130,22 +145,20 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         .collectAsState(initial = ActiveTripState())
 
     val tickIntervalMs = storedSettings.overclockMode.clockUpdateIntervalMs
-
-    var now by remember { mutableStateOf(LocalDateTime.now()) }
-    var networkConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
     val effectiveOnline = networkConnected && !storedSettings.offlineModeEnabled
+    val latestLocation by rememberUpdatedState(liveLocation)
 
-    // On startup with internet, query the latest GitHub Release
-    LaunchedEffect(effectiveOnline) {
-        if (effectiveOnline && availableUpdate == null) {
-            val remote = GithubUpdateManager.checkLatestRelease(forcePreviewFallback = false)
-            if (remote != null) {
-                availableUpdate = remote
+    // Atualização: consulta ao abrir (online), respeitando "ATUALIZAR SOZINHO"
+    LaunchedEffect(effectiveOnline, storedSettings.autoUpdateEnabled) {
+        if (effectiveOnline && storedSettings.autoUpdateEnabled && availableUpdate == null) {
+            val result = GithubUpdateManager.checkLatestRelease()
+            if (result is UpdateCheckResult.Available) {
+                availableUpdate = result.info
             }
         }
     }
 
-    // Clock & GPS telemetry update loop controlled by OverclockMode (Eco 5000ms, Equilíbrio 1000ms, OC 250ms)
+    // Relógio, rede e GPS no ritmo do modo de overclock
     LaunchedEffect(tickIntervalMs) {
         while (true) {
             now = LocalDateTime.now()
@@ -159,10 +172,37 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         }
     }
 
-    val maxCount = (launchCounts.values.maxOrNull() ?: 42).coerceAtLeast(1)
+    // Temperatura, CPU e RAM reais
+    LaunchedEffect(Unit) {
+        while (true) {
+            system = withContext(Dispatchers.IO) { SystemTelemetry.read(context) }
+            delay(SYSTEM_SAMPLE_MS)
+        }
+    }
+
+    // Clima real, atualizado a cada 30 min quando há internet e localização
+    LaunchedEffect(effectiveOnline) {
+        var lastFetchMs = 0L
+        while (true) {
+            val loc = latestLocation
+            val due = System.currentTimeMillis() - lastFetchMs > WEATHER_REFRESH_MS
+            if (effectiveOnline && loc != null && due) {
+                val reading = withContext(Dispatchers.IO) {
+                    WeatherRepository.fetchCurrent(loc.latitude, loc.longitude)
+                }
+                if (reading != null) {
+                    prefsRepo.saveWeather(reading)
+                    lastFetchMs = System.currentTimeMillis()
+                }
+            }
+            delay(WEATHER_CHECK_EVERY_MS)
+        }
+    }
+
+    val maxCount = (launchCounts.values.maxOrNull() ?: 0).coerceAtLeast(1)
 
     val allAppsWithUsage = allCatalogApps.map { app ->
-        val count = launchCounts[app.packageName] ?: app.launchCount
+        val count = launchCounts[app.packageName] ?: 0
         app.copy(
             launchCount = count,
             usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.15f, 1f)
@@ -174,23 +214,29 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
             .distinctBy { it.packageName }
             .take(storedSettings.overclockMode.preloadedAppsCount)
         preloadedPool.map { app ->
-            val count = launchCounts[app.packageName] ?: app.launchCount
+            val count = launchCounts[app.packageName] ?: 0
             app.copy(
                 launchCount = count,
-                usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.25f, 1f)
+                usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.15f, 1f)
             )
         }
     }
 
-    val currentTelemetry = remember(liveLocation, isGpsEnabled, hasLocationPermission, storedSettings.effectiveCpuTemp) {
-        TelemetryState(
-            latitude = liveLocation?.latitude ?: 36.1749,
-            longitude = liveLocation?.longitude ?: -86.6676,
-            hasGpsFix = liveLocation != null,
-            isGpsEnabled = isGpsEnabled && hasLocationPermission,
-            cpuTempCelsius = storedSettings.effectiveCpuTemp
-        )
-    }
+    val currentTelemetry = TelemetryState(
+        latitude = liveLocation?.latitude,
+        longitude = liveLocation?.longitude,
+        isGpsEnabled = isGpsEnabled && hasLocationPermission,
+        tempCelsius = system.tempCelsius,
+        cpuPercent = system.cpuPercent,
+        ramPercent = system.ramPercent
+    )
+
+    val weatherForHome = storedWeather.copy(
+        isOffline = !effectiveOnline,
+        hoursSinceUpdate = storedWeather.updatedAtEpochMs?.let {
+            ((System.currentTimeMillis() - it) / 3_600_000L).toInt().coerceAtLeast(1)
+        }
+    )
 
     fun requestGpsOrLocationPermission() {
         if (!hasLocationPermission) {
@@ -217,7 +263,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 seconds = now.second,
                 dateLabel = formatPortugueseShortDate(now),
                 telemetry = currentTelemetry,
-                weather = storedWeather.copy(isOffline = !effectiveOnline),
+                weather = weatherForHome,
                 gridApps = gridCandidateApps,
                 dockApps = dockApps,
                 settings = storedSettings,
@@ -231,8 +277,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
                 onAppClick = { entry ->
                     when {
-                        entry.iconType == OctoIconType.TODOS ||
-                            entry.packageName == "octo.internal.all_apps" -> {
+                        entry.packageName == InstalledAppsHelper.ALL_APPS_PACKAGE -> {
                             currentRoute = OctoRoute.ALL_APPS
                         }
 
@@ -241,7 +286,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                             currentRoute = OctoRoute.MAP
                         }
 
-                        entry.label == "CONFIG" -> {
+                        entry.packageName == InstalledAppsHelper.SETTINGS_PACKAGE -> {
                             currentRoute = OctoRoute.SETTINGS
                         }
 
@@ -263,7 +308,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 dockApps = dockApps,
                 onAppClick = { entry ->
                     when {
-                        entry.label == "CONFIG" -> currentRoute = OctoRoute.SETTINGS
+                        entry.packageName == InstalledAppsHelper.SETTINGS_PACKAGE -> currentRoute = OctoRoute.SETTINGS
                         entry.iconType == OctoIconType.MAPA || entry.label == "MAPA" -> {
                             scope.launch { prefsRepo.incrementLaunchCount(entry.packageName) }
                             currentRoute = OctoRoute.MAP
@@ -323,11 +368,20 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 onOpenMapClick = { currentRoute = OctoRoute.MAP },
                 onCheckUpdateClick = {
                     scope.launch {
-                        val release = GithubUpdateManager.checkLatestRelease(forcePreviewFallback = true)
-                        availableUpdate = release
-                        bannerDismissed = false
-                        downloadProgressPercent = 64
-                        currentRoute = OctoRoute.UPDATE
+                        when (val result = GithubUpdateManager.checkLatestRelease()) {
+                            is UpdateCheckResult.Available -> {
+                                availableUpdate = result.info
+                                bannerDismissed = false
+                                downloadProgressPercent = 0
+                                currentRoute = OctoRoute.UPDATE
+                            }
+                            UpdateCheckResult.UpToDate -> {
+                                Toast.makeText(context, "Você já está na versão mais recente.", Toast.LENGTH_SHORT).show()
+                            }
+                            UpdateCheckResult.Failed -> {
+                                Toast.makeText(context, "Não foi possível verificar atualizações.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
                     }
                 },
                 onBackClick = { currentRoute = OctoRoute.HOME },
@@ -338,9 +392,9 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         OctoRoute.OVERCLOCK -> {
             OverclockScreen(
                 selectedMode = storedSettings.overclockMode,
-                cpuPercent = storedSettings.overclockMode.baseCpuPercent,
-                ramPercent = storedSettings.overclockMode.baseRamPercent,
-                temperatureCelsius = storedSettings.effectiveCpuTemp,
+                cpuPercent = system.cpuPercent,
+                ramPercent = system.ramPercent,
+                temperatureCelsius = system.tempCelsius,
                 onSelectMode = { mode ->
                     scope.launch { prefsRepo.setOverclockMode(mode) }
                 },
@@ -356,11 +410,14 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 downloadProgressPercent = downloadProgressPercent,
                 onInstallClick = {
                     scope.launch {
-                        GithubUpdateManager.downloadAndInstallApk(
+                        val ok = GithubUpdateManager.downloadAndInstallApk(
                             context = context,
                             releaseInfo = info,
                             onProgressPercent = { pct -> downloadProgressPercent = pct }
                         )
+                        if (!ok) {
+                            Toast.makeText(context, "Não foi possível instalar a atualização.", Toast.LENGTH_LONG).show()
+                        }
                     }
                 },
                 onLaterClick = {

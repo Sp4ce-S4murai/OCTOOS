@@ -70,11 +70,8 @@ fun ActiveTripCard(
     val destination = remember(trip.destinationLat, trip.destinationLng) {
         LatLng(trip.destinationLat, trip.destinationLng)
     }
-    val midWaypoint = remember(origin, destination) {
-        LatLng(
-            (origin.latitude + destination.latitude) / 2.0 + 0.0022,
-            (origin.longitude + destination.longitude) / 2.0 - 0.0018
-        )
+    val routePoints = remember(trip.routePolyline, origin, destination) {
+        tripRoutePoints(trip, origin, destination)
     }
 
     Column(
@@ -152,7 +149,7 @@ fun ActiveTripCard(
                     onMapClick = { onClick() }
                 ) {
                     Polyline(
-                        points = listOf(origin, midWaypoint, destination),
+                        points = routePoints,
                         color = OctoLime,
                         width = 7f,
                         pattern = listOf(Dash(18f), Gap(12f))
@@ -276,3 +273,11 @@ private fun ActiveTripCardPreview() {
         }
     }
 }
+
+/** Pontos da rota real; sem rota, desenha a linha reta entre origem e destino. */
+fun tripRoutePoints(trip: com.pedro.octoos.data.ActiveTripState, origin: com.google.android.gms.maps.model.LatLng, destination: com.google.android.gms.maps.model.LatLng): List<com.google.android.gms.maps.model.LatLng> =
+    if (trip.routePolyline.size >= 2) {
+        trip.routePolyline.map { com.google.android.gms.maps.model.LatLng(it.first, it.second) }
+    } else {
+        listOf(origin, destination)
+    }

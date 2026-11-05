@@ -186,22 +186,19 @@ private fun HomeTelemetryHeader(
     onOpenOverclockClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isHot = telemetry.cpuTempCelsius > 60
+    val isHot = (telemetry.tempCelsius ?: 0) > 60
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val coordsText = if (!telemetry.isGpsEnabled) {
-                "SEM GPS · ATIVAR"
-            } else {
-                String.format(
-                    Locale.US,
-                    "X %.4f · Y %.4f",
-                    telemetry.latitude,
-                    telemetry.longitude
-                )
+            val lat = telemetry.latitude
+            val lng = telemetry.longitude
+            val coordsText = when {
+                !telemetry.isGpsEnabled -> "SEM GPS · ATIVAR"
+                lat == null || lng == null -> "GPS SEM SINAL"
+                else -> String.format(Locale.US, "X %.4f · Y %.4f", lat, lng)
             }
             Text(
                 text = coordsText,
@@ -213,7 +210,7 @@ private fun HomeTelemetryHeader(
                 modifier = Modifier.clickable(onClick = onGpsHeaderClick)
             )
             Text(
-                text = if (isOffline) "○ OFFLINE" else "${telemetry.cpuTempCelsius}°C",
+                text = if (isOffline) "○ OFFLINE" else (telemetry.tempCelsius?.let { "$it°C" } ?: "--°C"),
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
@@ -268,19 +265,19 @@ private fun WeatherReadout(
             Text(
                 text = buildAnnotatedString {
                     withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Medium)) {
-                        append("${weather.temperatureCelsius}°  ")
+                        append("${weather.temperatureCelsius?.toString() ?: "--"}°  ")
                     }
                     withStyle(SpanStyle(color = OctoGray)) {
                         append("UMID ")
                     }
                     withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Medium)) {
-                        append("${weather.humidityPercent}%  ")
+                        append("${weather.humidityPercent?.toString() ?: "--"}%  ")
                     }
                     withStyle(SpanStyle(color = OctoGray)) {
                         append("VENTO ")
                     }
                     withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Medium)) {
-                        append("${weather.windKmh}")
+                        append("${weather.windKmh?.toString() ?: "--"}")
                     }
                 },
                 fontFamily = IbmPlexMonoFamily,
@@ -292,7 +289,7 @@ private fun WeatherReadout(
         if (weather.isOffline) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "desatualizado · há ${weather.hoursSinceUpdate} h",
+                text = if (weather.hoursSinceUpdate == null) "sem leitura · offline" else "desatualizado · há ${weather.hoursSinceUpdate} h",
                 fontFamily = IbmPlexMonoFamily,
                 fontSize = 11.sp,
                 color = OctoGray,

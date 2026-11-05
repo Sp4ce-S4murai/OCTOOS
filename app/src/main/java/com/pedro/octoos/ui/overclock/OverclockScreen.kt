@@ -31,25 +31,26 @@ import com.pedro.octoos.ui.theme.OctoBorder
 import com.pedro.octoos.ui.theme.OctoGray
 import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
-import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OctoTile
+import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OrbitronFamily
 import kotlin.math.roundToInt
 
 private const val THERMAL_ALERT_THRESHOLD_C = 60
 private val PeakSegmentOrange = Color(0xFFFF5722)
 
+/** Valores nulos aparecem como "--" e as barras ficam apagadas. */
 @Composable
 fun OverclockScreen(
     selectedMode: OverclockMode,
-    cpuPercent: Int,
-    ramPercent: Int,
-    temperatureCelsius: Int,
+    cpuPercent: Int?,
+    ramPercent: Int?,
+    temperatureCelsius: Int?,
     onSelectMode: (OverclockMode) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isOverheating = temperatureCelsius > THERMAL_ALERT_THRESHOLD_C || selectedMode == OverclockMode.OC
+    val isOverheating = (temperatureCelsius ?: 0) > THERMAL_ALERT_THRESHOLD_C
 
     Column(
         modifier = modifier
@@ -66,7 +67,8 @@ fun OverclockScreen(
 
         SegmentedBarSection(
             label = "CPU",
-            litSegments = ((cpuPercent / 100f) * 10).roundToInt().coerceIn(1, 10),
+            valueLabel = cpuPercent?.let { "$it%" } ?: "--",
+            litSegments = cpuPercent?.let { segmentsFor(it, 100) } ?: 0,
             peakStartSegment = 8
         )
 
@@ -74,7 +76,8 @@ fun OverclockScreen(
 
         SegmentedBarSection(
             label = "RAM",
-            litSegments = ((ramPercent / 100f) * 10).roundToInt().coerceIn(1, 10),
+            valueLabel = ramPercent?.let { "$it%" } ?: "--",
+            litSegments = ramPercent?.let { segmentsFor(it, 100) } ?: 0,
             peakStartSegment = 10
         )
 
@@ -82,17 +85,13 @@ fun OverclockScreen(
 
         SegmentedBarSection(
             label = "TEMPERATURA",
-            litSegments = when (selectedMode) {
-                OverclockMode.ECO -> 4
-                OverclockMode.EQUILIBRIO -> 6
-                OverclockMode.OC -> 8
-            },
+            valueLabel = temperatureCelsius?.let { "$it°C" } ?: "--°C",
+            litSegments = temperatureCelsius?.let { segmentsFor(it, 100) } ?: 0,
             peakStartSegment = 6
         )
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Thermal warning box when overheating (> 60°C / OC mode)
         if (isOverheating) {
             ThermalWarningBox()
             Spacer(modifier = Modifier.height(14.dp))
@@ -104,6 +103,10 @@ fun OverclockScreen(
         )
     }
 }
+
+/** Converte um valor de 0 a [max] em 0 a 10 segmentos. */
+private fun segmentsFor(value: Int, max: Int): Int =
+    ((value.coerceIn(0, max) / max.toFloat()) * 10).roundToInt()
 
 @Composable
 private fun OverclockTopBar(
@@ -164,19 +167,34 @@ private fun OverclockTopBar(
 @Composable
 private fun SegmentedBarSection(
     label: String,
+    valueLabel: String,
     litSegments: Int,
     peakStartSegment: Int,
     totalSegments: Int = 10
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            fontFamily = IbmPlexMonoFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 11.sp,
-            color = OctoLime,
-            letterSpacing = 0.8.sp
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = OctoLime,
+                letterSpacing = 0.8.sp
+            )
+            Text(
+                text = valueLabel,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = OctoText,
+                letterSpacing = 0.8.sp
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -221,7 +239,7 @@ private fun ThermalWarningBox() {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Volte ao modo equilibrado se\npassar de 60°C.",
+            text = "Temperatura acima de 60°C.\nVolte ao modo equilibrado.",
             fontFamily = IbmPlexMonoFamily,
             fontSize = 11.sp,
             lineHeight = 16.sp,

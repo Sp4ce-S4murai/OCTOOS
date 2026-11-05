@@ -37,8 +37,8 @@ import com.pedro.octoos.update.UpdateReleaseInfo
 
 /**
  * Full-screen update view matching the "4. Atualização" layout:
- * - Header: ATUALIZAÇÃO | 1.3 → 1.4
- * - Title: VERSÃO 1.4
+ * - Header: ATUALIZAÇÃO | versão atual → nova
+ * - Title: VERSÃO nova
  * - O QUE MUDOU with "> " bullets
  * - Progress bar + BAIXANDO | 64%
  * - Bottom buttons: INSTALAR (lime) and MAIS TARDE (dark outlined)

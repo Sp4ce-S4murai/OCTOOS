@@ -9,7 +9,6 @@ import android.os.Build
 import android.provider.Settings
 import com.pedro.octoos.BuildConfig
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -19,35 +18,30 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class UpdateReleaseInfo(
-    val currentVersionLabel: String = "1.3",
-    val targetVersionLabel: String = "1.4",
-    val remoteVersionCode: Int = BuildConfig.VERSION_CODE + 1,
-    val changelogItems: List<String> = listOf(
-        "Mapa com radar e rotas",
-        "Dock com nomes dos apps",
-        "Correção no clima offline"
-    ),
+    val currentVersionLabel: String = BuildConfig.VERSION_NAME,
+    val targetVersionLabel: String = "",
+    val remoteVersionCode: Int = 0,
+    val changelogItems: List<String> = emptyList(),
     val apkDownloadUrl: String? = null
 )
 
+sealed class UpdateCheckResult {
+    data class Available(val info: UpdateReleaseInfo) : UpdateCheckResult()
+    object UpToDate : UpdateCheckResult()
+    object Failed : UpdateCheckResult()
+}
+
 object GithubUpdateManager {
 
-    /**
-     * Queries the latest GitHub Release from the public repository and compares remoteVersionCode
-     * against BuildConfig.VERSION_CODE. If forcePreviewFallback is true (e.g. manual check before
-     * first GitHub release is published), returns the 1.3 -> 1.4 preview release.
-     */
-    suspend fun checkLatestRelease(
-        forcePreviewFallback: Boolean = false
-    ): UpdateReleaseInfo? = withContext(Dispatchers.IO) {
-        val remoteInfo = runCatching { fetchFromGithubApi() }.getOrNull()
-        if (remoteInfo != null && remoteInfo.remoteVersionCode > BuildConfig.VERSION_CODE) {
-            return@withContext remoteInfo
+    /** Consulta a última Release pública. O versionCode vem do número no final da tag (vX.Y.N). */
+    suspend fun checkLatestRelease(): UpdateCheckResult = withContext(Dispatchers.IO) {
+        val remote = runCatching { fetchFromGithubApi() }.getOrNull()
+            ?: return@withContext UpdateCheckResult.Failed
+        if (remote.remoteVersionCode > BuildConfig.VERSION_CODE) {
+            UpdateCheckResult.Available(remote)
+        } else {
+            UpdateCheckResult.UpToDate
         }
-        if (forcePreviewFallback) {
-            return@withContext UpdateReleaseInfo()
-        }
-        null
     }
 
     private fun fetchFromGithubApi(): UpdateReleaseInfo? {
@@ -60,54 +54,45 @@ object GithubUpdateManager {
         }
 
         return try {
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            val payload = connection.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(payload)
-            val tagName = json.optString("tag_name", "").removePrefix("v").trim()
-            val body = json.optString("body", "").trim()
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                null
+            } else {
+                val payload = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(payload)
+                val tagName = json.optString("tag_name", "").removePrefix("v").trim()
+                val body = json.optString("body", "").trim()
 
-            // Parse versionCode from tag (e.g. v0.1.12 -> 12) or fallback to minor*10
-            val parsedCode = tagName.split(".")
-                .lastOrNull()
-                ?.filter { it.isDigit() }
-                ?.toIntOrNull()
-                ?: (BuildConfig.VERSION_CODE)
+                val parsedCode = tagName.split(".").lastOrNull()
+                    ?.filter { it.isDigit() }
+                    ?.toIntOrNull() ?: 0
 
-            val assets = json.optJSONArray("assets")
-            var apkUrl: String? = null
-            if (assets != null) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.optJSONObject(i) ?: continue
-                    val name = asset.optString("name", "")
-                    if (name.endsWith(".apk", ignoreCase = true)) {
+                var apkUrl: String? = null
+                val assets = json.optJSONArray("assets")
+                if (assets != null) {
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(i) ?: continue
+                        val name = asset.optString("name", "")
                         val url = asset.optString("browser_download_url", "")
-                        if (url.isNotEmpty()) {
+                        if (name.endsWith(".apk", ignoreCase = true) && url.isNotEmpty()) {
                             apkUrl = url
                             break
                         }
                     }
                 }
+
+                val bullets = body.lines()
+                    .map { it.trim().removePrefix("-").removePrefix("*").removePrefix(">").trim() }
+                    .filter { it.isNotEmpty() }
+                    .take(5)
+
+                UpdateReleaseInfo(
+                    currentVersionLabel = BuildConfig.VERSION_NAME,
+                    targetVersionLabel = tagName,
+                    remoteVersionCode = parsedCode,
+                    changelogItems = bullets.ifEmpty { listOf("Sem notas de versão.") },
+                    apkDownloadUrl = apkUrl
+                )
             }
-
-            val parsedBullets = body.lines()
-                .map { it.trim().removePrefix("-").removePrefix("*").removePrefix(">").trim() }
-                .filter { it.isNotEmpty() }
-                .take(5)
-                .ifEmpty {
-                    listOf(
-                        "Mapa com radar e rotas",
-                        "Dock com nomes dos apps",
-                        "Correção no clima offline"
-                    )
-                }
-
-            UpdateReleaseInfo(
-                currentVersionLabel = BuildConfig.VERSION_NAME,
-                targetVersionLabel = tagName.ifEmpty { "1.4" },
-                remoteVersionCode = parsedCode,
-                changelogItems = parsedBullets,
-                apkDownloadUrl = apkUrl
-            )
         } finally {
             connection.disconnect()
         }
@@ -127,10 +112,7 @@ object GithubUpdateManager {
         runCatching { context.startActivity(intent) }
     }
 
-    /**
-     * Downloads the APK (or simulates download progress when testing without a remote APK URL)
-     * and installs it via Android PackageInstaller session.
-     */
+    /** Baixa o APK da Release com progresso real e instala pelo PackageInstaller. */
     suspend fun downloadAndInstallApk(
         context: Context,
         releaseInfo: UpdateReleaseInfo,
@@ -143,15 +125,7 @@ object GithubUpdateManager {
             return@withContext false
         }
 
-        val apkUrl = releaseInfo.apkDownloadUrl
-        if (apkUrl.isNullOrBlank()) {
-            // Simulate progress up to 100% when running local preview without remote APK asset
-            for (step in listOf(20, 42, 64, 85, 100)) {
-                withContext(Dispatchers.Main) { onProgressPercent(step) }
-                delay(240L)
-            }
-            return@withContext true
-        }
+        val apkUrl = releaseInfo.apkDownloadUrl ?: return@withContext false
 
         val targetFile = File(context.cacheDir, "octoos-update.apk")
         val downloaded = runCatching {
@@ -219,4 +193,3 @@ object GithubUpdateManager {
         }.getOrDefault(false)
     }
 }
-
