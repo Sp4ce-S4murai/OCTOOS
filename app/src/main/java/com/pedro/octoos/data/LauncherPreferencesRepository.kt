@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -24,9 +25,17 @@ class LauncherPreferencesRepository(private val context: Context) {
     private val orbitModeKey = booleanPreferencesKey("settings_orbit_mode")
     private val showUsageBarsKey = booleanPreferencesKey("settings_show_usage_bars")
     private val hapticFeedbackKey = booleanPreferencesKey("settings_haptic_feedback")
+    private val animationsKey = booleanPreferencesKey("settings_animations_enabled")
+    private val autoUpdateKey = booleanPreferencesKey("settings_auto_update_enabled")
+    private val offlineModeKey = booleanPreferencesKey("settings_offline_mode_enabled")
+    private val performanceFractionKey = floatPreferencesKey("settings_performance_fraction")
     private val clockScalePercentKey = intPreferencesKey("settings_clock_scale_percent")
     private val gridAppsLimitKey = intPreferencesKey("settings_grid_apps_limit")
     private val overclockModeKey = stringPreferencesKey("settings_overclock_mode")
+
+    private val tripActiveKey = booleanPreferencesKey("trip_is_active")
+    private val tripDestinationKey = stringPreferencesKey("trip_destination")
+    private val tripModeKey = stringPreferencesKey("trip_travel_mode")
 
     fun launchCountsFlow(packageNames: List<String>): Flow<Map<String, Int>> {
         return context.dataStore.data.map { prefs ->
@@ -65,49 +74,106 @@ class LauncherPreferencesRepository(private val context: Context) {
         val modeName = prefs[overclockModeKey] ?: OverclockMode.EQUILIBRIO.name
         val mode = runCatching { OverclockMode.valueOf(modeName) }
             .getOrDefault(OverclockMode.EQUILIBRIO)
+        val defaultSlider = when (mode) {
+            OverclockMode.ECO -> 0.25f
+            OverclockMode.EQUILIBRIO -> 0.54f
+            OverclockMode.OC -> 0.92f
+        }
         SettingsState(
             orbitModeEnabled = prefs[orbitModeKey] ?: true,
             showUsageBars = prefs[showUsageBarsKey] ?: true,
             hapticFeedback = prefs[hapticFeedbackKey] ?: true,
+            animationsEnabled = prefs[animationsKey] ?: mode.animationsEnabled,
+            autoUpdateEnabled = prefs[autoUpdateKey] ?: true,
+            offlineModeEnabled = prefs[offlineModeKey] ?: false,
+            performanceSliderFraction = prefs[performanceFractionKey] ?: defaultSlider,
             clockScalePercent = prefs[clockScalePercentKey] ?: 100,
             gridAppsLimit = prefs[gridAppsLimitKey] ?: 4,
             overclockMode = mode
         )
     }
 
-    suspend fun setOrbitModeEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[orbitModeKey] = enabled }
+    val activeTripFlow: Flow<ActiveTripState> = context.dataStore.data.map { prefs ->
+        val isActive = prefs[tripActiveKey] ?: false
+        val destination = prefs[tripDestinationKey] ?: "Av. Independência"
+        val modeName = prefs[tripModeKey] ?: TravelMode.CARRO.name
+        val mode = runCatching { TravelMode.valueOf(modeName) }.getOrDefault(TravelMode.CARRO)
+        val isWalking = mode == TravelMode.A_PE
+
+        ActiveTripState(
+            isActive = isActive,
+            destinationAddress = destination,
+            arrivalTimeLabel = if (isWalking) "14:48" else "14:21",
+            nextManeuverDistanceLabel = if (isWalking) "120 M" else "300 M",
+            remainingDurationLabel = if (isWalking) "38 min" else "12 min",
+            maneuverInstruction = "Vire à direita · $destination",
+            remainingDistanceKmLabel = if (isWalking) "2,8 km" else "4,2 km",
+            travelMode = mode
+        )
     }
 
-    suspend fun setShowUsageBars(enabled: Boolean) {
-        context.dataStore.edit { it[showUsageBarsKey] = enabled }
+    suspend fun setAnimationsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[animationsKey] = enabled }
     }
 
-    suspend fun setHapticFeedback(enabled: Boolean) {
-        context.dataStore.edit { it[hapticFeedbackKey] = enabled }
+    suspend fun setAutoUpdateEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[autoUpdateKey] = enabled }
     }
 
-    suspend fun setClockScalePercent(percent: Int) {
-        context.dataStore.edit { it[clockScalePercentKey] = percent.coerceIn(80, 120) }
-    }
-
-    suspend fun setGridAppsLimit(limit: Int) {
-        context.dataStore.edit { it[gridAppsLimitKey] = limit.coerceIn(4, 8) }
+    suspend fun setOfflineModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[offlineModeKey] = enabled }
     }
 
     suspend fun setOverclockMode(mode: OverclockMode) {
-        context.dataStore.edit { it[overclockModeKey] = mode.name }
+        val fraction = when (mode) {
+            OverclockMode.ECO -> 0.25f
+            OverclockMode.EQUILIBRIO -> 0.54f
+            OverclockMode.OC -> 0.92f
+        }
+        context.dataStore.edit {
+            it[overclockModeKey] = mode.name
+            it[performanceFractionKey] = fraction
+            it[animationsKey] = mode.animationsEnabled
+        }
+    }
+
+    suspend fun setPerformanceSliderFraction(fraction: Float) {
+        val clamped = fraction.coerceIn(0.1f, 1f)
+        val mode = when {
+            clamped < 0.38f -> OverclockMode.ECO
+            clamped < 0.75f -> OverclockMode.EQUILIBRIO
+            else -> OverclockMode.OC
+        }
+        context.dataStore.edit {
+            it[performanceFractionKey] = clamped
+            it[overclockModeKey] = mode.name
+            it[animationsKey] = mode.animationsEnabled
+        }
+    }
+
+    suspend fun startTrip(destination: String, travelMode: TravelMode) {
+        context.dataStore.edit {
+            it[tripActiveKey] = true
+            it[tripDestinationKey] = destination.ifBlank { "Av. Independência" }
+            it[tripModeKey] = travelMode.name
+        }
+    }
+
+    suspend fun stopTrip() {
+        context.dataStore.edit {
+            it[tripActiveKey] = false
+        }
     }
 
     private fun launchCountKey(packageName: String) =
         intPreferencesKey("launch_count_$packageName")
 
     private fun defaultSeedCount(packageName: String): Int = when {
-        packageName.contains("claude", ignoreCase = true) -> 42
-        packageName.contains("maps", ignoreCase = true) -> 28
-        packageName.contains("mms", ignoreCase = true) ||
-            packageName.contains("messaging", ignoreCase = true) -> 35
-        packageName.contains("git", ignoreCase = true) -> 24
-        else -> 12
+        packageName.contains("whatsapp", ignoreCase = true) -> 42
+        packageName.contains("camera", ignoreCase = true) -> 18
+        packageName.contains("git", ignoreCase = true) -> 9
+        packageName.contains("maps", ignoreCase = true) -> 4
+        packageName.contains("claude", ignoreCase = true) -> 3
+        else -> 2
     }
 }

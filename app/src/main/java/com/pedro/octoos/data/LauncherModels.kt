@@ -4,6 +4,7 @@ import com.pedro.octoos.ui.components.OctoIconType
 
 enum class OverclockMode(
     val label: String,
+    val shortChipLabel: String,
     val animationsEnabled: Boolean,
     val animationDurationMs: Int,
     val preloadedAppsCount: Int,
@@ -13,41 +14,64 @@ enum class OverclockMode(
     val baseTempCelsius: Int
 ) {
     ECO(
-        label = "Eco",
+        label = "ECO",
+        shortChipLabel = "ECO",
         animationsEnabled = false,
         animationDurationMs = 0,
         preloadedAppsCount = 4,
         clockUpdateIntervalMs = 5000L,
-        baseCpuPercent = 18,
-        baseRamPercent = 34,
-        baseTempCelsius = 41
+        baseCpuPercent = 28,
+        baseRamPercent = 40,
+        baseTempCelsius = 43
     ),
     EQUILIBRIO(
-        label = "Equilíbrio",
+        label = "EQUILÍBRIO",
+        shortChipLabel = "EQUIL.",
         animationsEnabled = true,
         animationDurationMs = 900,
         preloadedAppsCount = 8,
         clockUpdateIntervalMs = 1000L,
-        baseCpuPercent = 42,
-        baseRamPercent = 54,
+        baseCpuPercent = 50,
+        baseRamPercent = 50,
         baseTempCelsius = 52
     ),
     OC(
         label = "OC",
+        shortChipLabel = "OC",
         animationsEnabled = true,
         animationDurationMs = 350,
         preloadedAppsCount = 16,
         clockUpdateIntervalMs = 250L,
-        baseCpuPercent = 86,
-        baseRamPercent = 78,
-        baseTempCelsius = 64
+        baseCpuPercent = 90,
+        baseRamPercent = 50,
+        baseTempCelsius = 78
     )
 }
+
+enum class TravelMode(val label: String, val mapsModeCode: String) {
+    CARRO("CARRO", "d"),
+    A_PE("A PÉ", "w")
+}
+
+data class ActiveTripState(
+    val isActive: Boolean = false,
+    val destinationAddress: String = "Av. Independência",
+    val arrivalTimeLabel: String = "14:21",
+    val nextManeuverDistanceLabel: String = "300 M",
+    val remainingDurationLabel: String = "12 min",
+    val maneuverInstruction: String = "Vire à direita · Av. Independência",
+    val remainingDistanceKmLabel: String = "4,2 km",
+    val travelMode: TravelMode = TravelMode.CARRO
+)
 
 data class SettingsState(
     val orbitModeEnabled: Boolean = true,
     val showUsageBars: Boolean = true,
     val hapticFeedback: Boolean = true,
+    val animationsEnabled: Boolean = true,
+    val autoUpdateEnabled: Boolean = true,
+    val offlineModeEnabled: Boolean = false,
+    val performanceSliderFraction: Float = 0.54f,
     val clockScalePercent: Int = 100,
     val gridAppsLimit: Int = 4,
     val overclockMode: OverclockMode = OverclockMode.EQUILIBRIO,
@@ -64,7 +88,8 @@ data class AppEntry(
     val iconType: OctoIconType? = null,
     val launchCount: Int = 0,
     val usageRatio: Float = 0.5f,
-    val firstInstallTime: Long = 0L
+    val firstInstallTime: Long = 0L,
+    val recencyLabel: String = "HOJE"
 )
 
 data class WeatherState(

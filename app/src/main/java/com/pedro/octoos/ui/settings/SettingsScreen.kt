@@ -3,32 +3,30 @@ package com.pedro.octoos.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.pedro.octoos.BuildConfig
 import com.pedro.octoos.data.SettingsState
-import com.pedro.octoos.ui.theme.ChamferedShape
+import com.pedro.octoos.ui.theme.BebasNeueFamily
 import com.pedro.octoos.ui.theme.IbmPlexMonoFamily
 import com.pedro.octoos.ui.theme.OctoBackground
 import com.pedro.octoos.ui.theme.OctoBorder
@@ -37,365 +35,370 @@ import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
 import com.pedro.octoos.ui.theme.OctoTile
-import com.pedro.octoos.ui.theme.OrbitronFamily
-import com.pedro.octoos.ui.theme.ShareTechMonoFamily
-import kotlin.math.roundToInt
 
 @Composable
 fun SettingsScreen(
     settings: SettingsState,
-    updateStatusMessage: String?,
-    onToggleOrbitMode: (Boolean) -> Unit,
-    onToggleUsageBars: (Boolean) -> Unit,
-    onToggleHaptic: (Boolean) -> Unit,
-    onClockScaleChange: (Int) -> Unit,
-    onGridLimitChange: (Int) -> Unit,
+    isOnline: Boolean,
+    onPerformanceFractionChange: (Float) -> Unit,
+    onToggleAnimations: (Boolean) -> Unit,
+    onToggleAutoUpdate: (Boolean) -> Unit,
+    onToggleOfflineMode: (Boolean) -> Unit,
     onOpenOverclockClick: () -> Unit,
+    onOpenMapClick: () -> Unit,
     onCheckUpdateClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val effectiveOnline = isOnline && !settings.offlineModeEnabled
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(OctoBackground)
             .padding(horizontal = 20.dp, vertical = 14.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SettingsHeader(onBackClick = onBackClick)
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        SectionLabel(text = "INTERFACE E RELÓGIO")
-
-        CyberSwitchControlRow(
-            title = "MODO ÓRBITA",
-            subtitle = "Gira os anéis para alinhar o horário atual no topo",
-            checked = settings.orbitModeEnabled,
-            onCheckedChange = onToggleOrbitMode
+        SettingsTopBar(
+            isOnline = effectiveOnline,
+            onBackClick = onBackClick
         )
 
-        CyberSwitchControlRow(
-            title = "BARRA DE USO NOS TILES",
-            subtitle = "Exibe linha de 3dp proporcional às aberturas",
-            checked = settings.showUsageBars,
-            onCheckedChange = onToggleUsageBars
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SectionNumberHeader(text = "/01 DESEMPENHO")
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOpenOverclockClick),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "MODO",
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = OctoText,
+                letterSpacing = 0.6.sp
+            )
+            Text(
+                text = settings.overclockMode.label,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = OctoLime,
+                letterSpacing = 0.6.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Rectangular lime slider bar
+        CyberBarSlider(
+            fraction = settings.performanceSliderFraction,
+            onFractionChange = onPerformanceFractionChange
         )
 
-        CyberSwitchControlRow(
-            title = "RESPOSTA TÁTIL",
-            subtitle = "Vibração curta ao abrir apps e controles",
-            checked = settings.hapticFeedback,
-            onCheckedChange = onToggleHaptic
+        Spacer(modifier = Modifier.height(22.dp))
+
+        SectionNumberHeader(text = "/02 SISTEMA")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        SettingsSwitchRow(
+            label = "ANIMAÇÕES",
+            checked = settings.animationsEnabled,
+            onCheckedChange = onToggleAnimations
         )
 
-        CyberSliderControlRow(
-            title = "ESCALA DO RELÓGIO",
-            valueLabel = "${settings.clockScalePercent}%",
-            value = settings.clockScalePercent.toFloat(),
-            valueRange = 80f..120f,
-            steps = 7,
-            onValueChange = { onClockScaleChange(it.roundToInt()) }
+        SettingsSwitchRow(
+            label = "ATUALIZAR SOZINHO",
+            checked = settings.autoUpdateEnabled,
+            onCheckedChange = onToggleAutoUpdate
         )
 
-        CyberSliderControlRow(
-            title = "GRADE DA TELA INICIAL",
-            valueLabel = "${settings.gridAppsLimit} APPS",
-            value = settings.gridAppsLimit.toFloat(),
-            valueRange = 4f..8f,
-            steps = 3,
-            onValueChange = { onGridLimitChange(it.roundToInt()) }
+        SettingsSwitchRow(
+            label = "MODO OFFLINE",
+            checked = settings.offlineModeEnabled,
+            onCheckedChange = onToggleOfflineMode,
+            invertVisualDirection = true
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
+        SettingsValueRow(
+            label = "MAPA",
+            value = "GOOGLE MAPS",
+            onClick = onOpenMapClick
+        )
 
-        SectionLabel(text = "DESEMPENHO E SISTEMA")
-
-        OverclockShortcutRow(
-            modeLabel = settings.overclockMode.label.uppercase(),
-            cpuTemp = settings.effectiveCpuTemp,
-            preloadCount = settings.overclockMode.preloadedAppsCount,
+        SettingsActionRow(
+            label = "SOBRE   >",
             onClick = onOpenOverclockClick
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.weight(1f))
 
-        CheckUpdateButton(
-            versionName = BuildConfig.VERSION_NAME,
-            versionCode = BuildConfig.VERSION_CODE,
-            statusMessage = updateStatusMessage,
-            onClick = onCheckUpdateClick
-        )
-    }
-}
-
-@Composable
-private fun SettingsHeader(onBackClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "CONFIGURAÇÕES",
-            fontFamily = OrbitronFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = OctoText,
-            letterSpacing = 1.5.sp
-        )
         Box(
             modifier = Modifier
-                .clip(ChamferedShape(8.dp))
-                .background(OctoTile)
-                .border(1.dp, OctoBorder, ChamferedShape(8.dp))
-                .clickable(onClick = onBackClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .fillMaxWidth()
+                .height(48.dp)
+                .background(OctoLime)
+                .clickable(onClick = onCheckUpdateClick),
+            contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "← INÍCIO",
+                text = "VERIFICAR ATUALIZAÇÃO",
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OctoLime
+                color = OctoBackground,
+                letterSpacing = 1.sp
             )
         }
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        fontFamily = IbmPlexMonoFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 10.sp,
-        color = OctoGray,
-        letterSpacing = 1.2.sp
-    )
-}
-
-@Composable
-private fun CyberSwitchControlRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+private fun SettingsTopBar(
+    isOnline: Boolean,
+    onBackClick: () -> Unit
 ) {
-    val shape = ChamferedShape(12.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, OctoBorder, shape)
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontFamily = IbmPlexMonoFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = OctoText
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                fontFamily = IbmPlexMonoFamily,
-                fontSize = 10.sp,
-                color = OctoGray
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Value on the right + cyber switch pill
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (checked) "ON" else "OFF",
-                fontFamily = ShareTechMonoFamily,
-                fontSize = 13.sp,
-                color = if (checked) OctoLime else OctoGray
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .width(42.dp)
-                    .height(22.dp)
-                    .clip(ChamferedShape(6.dp))
-                    .background(if (checked) OctoLime else OctoBackground)
-                    .border(
-                        width = 1.dp,
-                        color = if (checked) OctoLime else OctoBorder,
-                        shape = ChamferedShape(6.dp)
-                    )
-                    .padding(3.dp),
-                contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(14.dp)
-                        .height(14.dp)
-                        .background(if (checked) OctoBackground else OctoGray)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CyberSliderControlRow(
-    title: String,
-    valueLabel: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    onValueChange: (Float) -> Unit
-) {
-    val shape = ChamferedShape(12.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, OctoBorder, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = title,
+                text = "AJUSTES",
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = OctoText
+                fontSize = 11.sp,
+                color = OctoLime,
+                letterSpacing = 0.6.sp,
+                modifier = Modifier.clickable(onClick = onBackClick)
             )
-            Text(
-                text = valueLabel,
-                fontFamily = ShareTechMonoFamily,
-                fontSize = 15.sp,
-                color = OctoLime
-            )
-        }
-
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-            steps = steps,
-            colors = SliderDefaults.colors(
-                thumbColor = OctoLime,
-                activeTrackColor = OctoLime,
-                inactiveTrackColor = OctoBorder,
-                activeTickColor = OctoBackground,
-                inactiveTickColor = OctoGray
-            )
-        )
-    }
-}
-
-@Composable
-private fun OverclockShortcutRow(
-    modeLabel: String,
-    cpuTemp: Int,
-    preloadCount: Int,
-    onClick: () -> Unit
-) {
-    val shape = ChamferedShape(12.dp)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, OctoLime.copy(alpha = 0.55f), shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "PAINEL DE OVERCLOCK",
-                fontFamily = IbmPlexMonoFamily,
-                fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
-                color = OctoText
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "$preloadCount APPS PRÉ-CARREGADOS · $cpuTemp°C",
-                fontFamily = IbmPlexMonoFamily,
-                fontSize = 10.sp,
-                color = OctoGray
-            )
-        }
-
-        Text(
-            text = "$modeLabel →",
-            fontFamily = ShareTechMonoFamily,
-            fontSize = 15.sp,
-            color = OctoLime
-        )
-    }
-}
-
-@Composable
-private fun CheckUpdateButton(
-    versionName: String,
-    versionCode: Int,
-    statusMessage: String?,
-    onClick: () -> Unit
-) {
-    val shape = ChamferedShape(12.dp)
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-                .clip(shape)
-                .background(OctoLime)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "VERIFICAR ATUALIZAÇÃO",
-                fontFamily = OrbitronFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = OctoBackground,
-                letterSpacing = 1.5.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(if (isOnline) OctoLime else OctoGray)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (isOnline) "ONLINE" else "OFFLINE",
+                    fontFamily = IbmPlexMonoFamily,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    color = OctoGray
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "AJUSTES",
+            fontFamily = BebasNeueFamily,
+            fontSize = 36.sp,
+            color = OctoLime,
+            letterSpacing = 1.5.sp
+        )
+    }
+}
+
+@Composable
+private fun SectionNumberHeader(text: String) {
+    Text(
+        text = text,
+        fontFamily = IbmPlexMonoFamily,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        color = OctoLime,
+        letterSpacing = 1.2.sp
+    )
+}
+
+@Composable
+private fun CyberBarSlider(
+    fraction: Float,
+    onFractionChange: (Float) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(12.dp)
+            .background(OctoTile)
+            .border(1.dp, OctoBorder)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val newFraction = (offset.x / size.width.toFloat()).coerceIn(0.15f, 1f)
+                    onFractionChange(newFraction)
+                }
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction.coerceIn(0.15f, 1f))
+                .fillMaxHeight()
+                .background(OctoLime)
+        )
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    invertVisualDirection: Boolean = false
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 13.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "VERSÃO ATUAL: v$versionName ($versionCode)",
+                text = label,
                 fontFamily = IbmPlexMonoFamily,
-                fontSize = 10.sp,
-                color = OctoGray
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = OctoText,
+                letterSpacing = 0.6.sp
             )
-            if (!statusMessage.isNullOrBlank()) {
-                Text(
-                    text = statusMessage,
-                    fontFamily = IbmPlexMonoFamily,
-                    fontSize = 10.sp,
-                    color = OctoLime
+
+            // Rectangular toggle matching mockup
+            val isLimeActive = if (invertVisualDirection) checked else checked
+            val alignment = when {
+                invertVisualDirection && !checked -> Alignment.CenterEnd
+                checked -> Alignment.CenterStart
+                else -> Alignment.CenterEnd
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(22.dp)
+                    .background(OctoBackground)
+                    .border(
+                        width = 1.dp,
+                        color = if (isLimeActive) OctoLime else OctoGray
+                    )
+                    .padding(3.dp),
+                contentAlignment = alignment
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(if (isLimeActive) OctoLime else OctoGray)
                 )
             }
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
+        )
+    }
+}
+
+@Composable
+private fun SettingsValueRow(
+    label: String,
+    value: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = OctoText,
+                letterSpacing = 0.6.sp
+            )
+            Text(
+                text = value,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = OctoLime,
+                letterSpacing = 0.6.sp
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
+        )
+    }
+}
+
+@Composable
+private fun SettingsActionRow(
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 12.sp,
+                color = OctoText,
+                letterSpacing = 0.6.sp
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
+        )
     }
 }
 
@@ -411,16 +414,15 @@ private fun SettingsScreenPreview() {
     OctoOSTheme {
         SettingsScreen(
             settings = SettingsState(),
-            updateStatusMessage = "SISTEMA ATUALIZADO",
-            onToggleOrbitMode = {},
-            onToggleUsageBars = {},
-            onToggleHaptic = {},
-            onClockScaleChange = {},
-            onGridLimitChange = {},
+            isOnline = true,
+            onPerformanceFractionChange = {},
+            onToggleAnimations = {},
+            onToggleAutoUpdate = {},
+            onToggleOfflineMode = {},
             onOpenOverclockClick = {},
+            onOpenMapClick = {},
             onCheckUpdateClick = {},
             onBackClick = {}
         )
     }
 }
-

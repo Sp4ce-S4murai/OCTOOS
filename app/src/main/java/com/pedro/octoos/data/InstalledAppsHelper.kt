@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.provider.MediaStore
 import com.pedro.octoos.ui.components.OctoIconType
 import java.util.Locale
@@ -16,36 +17,40 @@ object InstalledAppsHelper {
             packageName = "com.anthropic.claude",
             monogram = "CL",
             iconType = OctoIconType.CLAUDE,
-            launchCount = 48,
-            usageRatio = 0.86f,
-            firstInstallTime = 1730500000000L
+            launchCount = 3,
+            usageRatio = 0.82f,
+            firstInstallTime = 1730500000000L,
+            recencyLabel = "SEMANA"
         ),
         AppEntry(
             label = "MAPA",
             packageName = "com.google.android.apps.maps",
             monogram = "MP",
             iconType = OctoIconType.MAPA,
-            launchCount = 31,
+            launchCount = 4,
             usageRatio = 0.56f,
-            firstInstallTime = 1730400000000L
+            firstInstallTime = 1730400000000L,
+            recencyLabel = "SEMANA"
         ),
         AppEntry(
             label = "MSGS",
             packageName = "com.google.android.apps.messaging",
             monogram = "MS",
             iconType = OctoIconType.MSGS,
-            launchCount = 40,
+            launchCount = 12,
             usageRatio = 0.72f,
-            firstInstallTime = 1730300000000L
+            firstInstallTime = 1730300000000L,
+            recencyLabel = "ONTEM"
         ),
         AppEntry(
             label = "GIT",
             packageName = "com.github.android",
             monogram = "GT",
             iconType = OctoIconType.GIT,
-            launchCount = 26,
+            launchCount = 9,
             usageRatio = 0.48f,
-            firstInstallTime = 1730450000000L
+            firstInstallTime = 1730450000000L,
+            recencyLabel = "ONTEM"
         )
     )
 
@@ -55,27 +60,30 @@ object InstalledAppsHelper {
             packageName = "com.whatsapp",
             monogram = "WA",
             iconType = OctoIconType.WHATSAPP,
-            launchCount = 64,
+            launchCount = 42,
             usageRatio = 1f,
-            firstInstallTime = 1730550000000L
+            firstInstallTime = 1730550000000L,
+            recencyLabel = "HOJE"
         ),
         AppEntry(
             label = "CÂMERA",
             packageName = "com.android.camera",
             monogram = "CM",
             iconType = OctoIconType.CAMERA,
-            launchCount = 19,
-            usageRatio = 0.34f,
-            firstInstallTime = 1730100000000L
+            launchCount = 18,
+            usageRatio = 0.45f,
+            firstInstallTime = 1730100000000L,
+            recencyLabel = "HOJE"
         ),
         AppEntry(
             label = "GIT",
             packageName = "com.github.android",
             monogram = "GT",
             iconType = OctoIconType.GIT,
-            launchCount = 26,
-            usageRatio = 0.48f,
-            firstInstallTime = 1730450000000L
+            launchCount = 9,
+            usageRatio = 0.35f,
+            firstInstallTime = 1730450000000L,
+            recencyLabel = "ONTEM"
         ),
         AppEntry(
             label = "TODOS",
@@ -86,21 +94,16 @@ object InstalledAppsHelper {
     )
 
     fun defaultCatalogApps(): List<AppEntry> = listOf(
-        AppEntry("ARQUIVOS", "com.android.documentsui", "AR", null, 14, 0.25f, 1730120000000L),
-        AppEntry("CALCULADORA", "com.google.android.calculator", "CA", null, 9, 0.18f, 1730080000000L),
-        AppEntry("CÂMERA", "com.android.camera", "CM", OctoIconType.CAMERA, 19, 0.34f, 1730100000000L),
-        AppEntry("CLAUDE", "com.anthropic.claude", "CL", OctoIconType.CLAUDE, 48, 0.86f, 1730500000000L),
-        AppEntry("CONFIG", "com.android.settings", "CF", null, 22, 0.40f, 1730200000000L),
-        AppEntry("GALERIA", "com.google.android.apps.photos", "GL", null, 17, 0.30f, 1730250000000L),
-        AppEntry("GIT", "com.github.android", "GT", OctoIconType.GIT, 26, 0.48f, 1730450000000L),
-        AppEntry("MAPA", "com.google.android.apps.maps", "MP", OctoIconType.MAPA, 31, 0.56f, 1730400000000L),
-        AppEntry("MSGS", "com.google.android.apps.messaging", "MS", OctoIconType.MSGS, 40, 0.72f, 1730300000000L),
-        AppEntry("MÚSICA", "com.spotify.music", "MU", null, 33, 0.60f, 1730480000000L),
-        AppEntry("NAVEGADOR", "com.android.chrome", "NV", null, 52, 0.90f, 1730350000000L),
-        AppEntry("NOTAS", "com.standardnotes", "NT", null, 15, 0.28f, 1730520000000L),
-        AppEntry("RELÓGIO", "com.google.android.deskclock", "RL", null, 11, 0.22f, 1730150000000L),
-        AppEntry("TERMINAL", "com.termux", "TM", null, 37, 0.66f, 1730540000000L),
-        AppEntry("WHATSAPP", "com.whatsapp", "WA", OctoIconType.WHATSAPP, 64, 1.00f, 1730550000000L)
+        AppEntry("ARQUIVOS", "com.android.documentsui", "AR", OctoIconType.CAMERA, 2, 0.25f, 1730120000000L, "SEMANA"),
+        AppEntry("CÂMERA", "com.android.camera", "CM", OctoIconType.CAMERA, 18, 0.45f, 1730100000000L, "HOJE"),
+        AppEntry("CLAUDE", "com.anthropic.claude", "CL", OctoIconType.CLAUDE, 3, 0.82f, 1730500000000L, "SEMANA"),
+        AppEntry("COLETOR", "com.octo.collector", "CO", OctoIconType.TODOS, 2, 0.22f, 1730080000000L, "SEMANA"),
+        AppEntry("CONFIG", "com.android.settings", "CF", OctoIconType.TODOS, 5, 0.40f, 1730200000000L, "ONTEM"),
+        AppEntry("CALC", "com.google.android.calculator", "CA", OctoIconType.TODOS, 2, 0.18f, 1730060000000L, "SEMANA"),
+        AppEntry("GIT", "com.github.android", "GT", OctoIconType.GIT, 9, 0.48f, 1730450000000L, "ONTEM"),
+        AppEntry("MAPA", "com.google.android.apps.maps", "MP", OctoIconType.MAPA, 4, 0.56f, 1730400000000L, "SEMANA"),
+        AppEntry("MSGS", "com.google.android.apps.messaging", "MS", OctoIconType.MSGS, 6, 0.72f, 1730300000000L, "ONTEM"),
+        AppEntry("WHATSAPP", "com.whatsapp", "WA", OctoIconType.WHATSAPP, 42, 1.00f, 1730550000000L, "HOJE")
     )
 
     fun loadAllInstalledApps(context: Context): List<AppEntry> {
@@ -130,17 +133,16 @@ object InstalledAppsHelper {
                 packageName = pkg,
                 monogram = preset?.monogram ?: monogram,
                 iconType = preset?.iconType ?: inferIconType(pkg, cleanUpper),
-                launchCount = preset?.launchCount ?: 8,
+                launchCount = preset?.launchCount ?: 3,
                 usageRatio = preset?.usageRatio ?: 0.25f,
-                firstInstallTime = installTime
+                firstInstallTime = installTime,
+                recencyLabel = preset?.recencyLabel ?: "SEMANA"
             )
         }.distinctBy { it.packageName }
 
-        val combined = (defaultCatalogApps() + dynamicApps)
+        return (defaultCatalogApps() + dynamicApps)
             .distinctBy { it.packageName }
             .sortedBy { it.label }
-
-        return combined
     }
 
     private fun buildMonogram(label: String): String {
@@ -152,14 +154,35 @@ object InstalledAppsHelper {
         }
     }
 
-    private fun inferIconType(packageName: String, label: String): OctoIconType? = when {
+    private fun inferIconType(packageName: String, label: String): OctoIconType = when {
         packageName.contains("claude", true) || label.contains("CLAUDE") -> OctoIconType.CLAUDE
         packageName.contains("maps", true) || label.contains("MAPA") -> OctoIconType.MAPA
         packageName.contains("whatsapp", true) -> OctoIconType.WHATSAPP
         packageName.contains("messaging", true) || packageName.contains("mms", true) -> OctoIconType.MSGS
-        packageName.contains("camera", true) || label.contains("CÂMERA") -> OctoIconType.CAMERA
+        packageName.contains("camera", true) || label.contains("CÂMERA") || label.contains("ARQUIVOS") -> OctoIconType.CAMERA
         packageName.contains("git", true) -> OctoIconType.GIT
-        else -> null
+        else -> OctoIconType.TODOS
+    }
+
+    fun launchGoogleMapsNavigation(context: Context, destination: String, travelMode: TravelMode) {
+        val encoded = Uri.encode(destination.ifBlank { "Av. Independência" })
+        val navIntent = Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse("google.navigation:q=$encoded&mode=${travelMode.mapsModeCode}")
+        ).apply {
+            setPackage("com.google.android.apps.maps")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val launched = runCatching { context.startActivity(navIntent) }.isSuccess
+        if (!launched) {
+            val fallbackGeo = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("geo:0,0?q=$encoded")
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            runCatching { context.startActivity(fallbackGeo) }
+        }
     }
 
     fun launchAppOrFallback(context: Context, entry: AppEntry) {
@@ -174,7 +197,7 @@ object InstalledAppsHelper {
         val fallbackIntent = when (entry.iconType) {
             OctoIconType.CAMERA -> Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
             OctoIconType.MAPA -> Intent(Intent.ACTION_VIEW).apply {
-                data = android.net.Uri.parse("geo:0,0?q=")
+                data = Uri.parse("geo:0,0?q=")
             }
             OctoIconType.MSGS, OctoIconType.WHATSAPP -> Intent(Intent.ACTION_MAIN).apply {
                 addCategory(Intent.CATEGORY_APP_MESSAGING)

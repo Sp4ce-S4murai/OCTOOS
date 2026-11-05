@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.pedro.octoos.data.ActiveTripState
 import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.LauncherPreferencesRepository
 import com.pedro.octoos.data.SettingsState
@@ -28,6 +29,7 @@ import com.pedro.octoos.ui.allapps.AllAppsScreen
 import com.pedro.octoos.ui.components.OctoIconType
 import com.pedro.octoos.ui.components.formatPortugueseShortDate
 import com.pedro.octoos.ui.home.HomeScreen
+import com.pedro.octoos.ui.map.MapScreen
 import com.pedro.octoos.ui.overclock.OverclockScreen
 import com.pedro.octoos.ui.settings.SettingsScreen
 import com.pedro.octoos.ui.theme.OctoBackground
@@ -39,6 +41,7 @@ import java.time.LocalDateTime
 enum class OctoRoute {
     HOME,
     ALL_APPS,
+    MAP,
     SETTINGS,
     OVERCLOCK
 }
@@ -73,8 +76,6 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     val prefsRepo = remember { LauncherPreferencesRepository(context) }
 
     var currentRoute by remember { mutableStateOf(OctoRoute.HOME) }
-    var tempOverride by remember { mutableStateOf<Int?>(null) }
-    var updateStatusMessage by remember { mutableStateOf<String?>(null) }
 
     val baseGridApps = remember { InstalledAppsHelper.defaultHomeGridApps() }
     val dockApps = remember { InstalledAppsHelper.defaultDockApps() }
@@ -90,41 +91,43 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         .collectAsState(initial = WeatherState())
     val storedSettings by prefsRepo.settingsFlow
         .collectAsState(initial = SettingsState())
+    val activeTrip by prefsRepo.activeTripFlow
+        .collectAsState(initial = ActiveTripState())
 
-    val activeSettings = storedSettings.copy(simulatedTempOverride = tempOverride)
-    val tickIntervalMs = activeSettings.overclockMode.clockUpdateIntervalMs
+    val tickIntervalMs = storedSettings.overclockMode.clockUpdateIntervalMs
 
     var now by remember { mutableStateOf(LocalDateTime.now()) }
-    var isConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
+    var networkConnected by remember { mutableStateOf(InstalledAppsHelper.isNetworkConnected(context)) }
+    val effectiveOnline = networkConnected && !storedSettings.offlineModeEnabled
 
     // Clock update loop frequency controlled by OverclockMode (Eco 5000ms, Equilíbrio 1000ms, OC 250ms)
     LaunchedEffect(tickIntervalMs) {
         while (true) {
             now = LocalDateTime.now()
-            isConnected = InstalledAppsHelper.isNetworkConnected(context)
+            networkConnected = InstalledAppsHelper.isNetworkConnected(context)
             delay(tickIntervalMs)
         }
     }
 
-    val maxCount = (launchCounts.values.maxOrNull() ?: 64).coerceAtLeast(1)
+    val maxCount = (launchCounts.values.maxOrNull() ?: 42).coerceAtLeast(1)
 
     val allAppsWithUsage = allCatalogApps.map { app ->
         val count = launchCounts[app.packageName] ?: app.launchCount
         app.copy(
             launchCount = count,
-            usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.12f, 1f)
+            usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.15f, 1f)
         )
     }
 
-    val gridCandidateApps = remember(baseGridApps, allAppsWithUsage, activeSettings.overclockMode) {
+    val gridCandidateApps = remember(baseGridApps, allAppsWithUsage, storedSettings.overclockMode, launchCounts) {
         val preloadedPool = (baseGridApps + allAppsWithUsage)
             .distinctBy { it.packageName }
-            .take(activeSettings.overclockMode.preloadedAppsCount)
+            .take(storedSettings.overclockMode.preloadedAppsCount)
         preloadedPool.map { app ->
             val count = launchCounts[app.packageName] ?: app.launchCount
             app.copy(
                 launchCount = count,
-                usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.20f, 1f)
+                usageRatio = (count.toFloat() / maxCount.toFloat()).coerceIn(0.25f, 1f)
             )
         }
     }
@@ -140,11 +143,13 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 minutes = now.minute,
                 seconds = now.second,
                 dateLabel = formatPortugueseShortDate(now),
-                telemetry = TelemetryState(cpuTempCelsius = activeSettings.effectiveCpuTemp),
-                weather = storedWeather.copy(isOffline = !isConnected),
+                telemetry = TelemetryState(cpuTempCelsius = storedSettings.effectiveCpuTemp),
+                weather = storedWeather.copy(isOffline = !effectiveOnline),
                 gridApps = gridCandidateApps,
                 dockApps = dockApps,
-                settings = activeSettings,
+                settings = storedSettings,
+                activeTrip = activeTrip,
+                onTripClick = { currentRoute = OctoRoute.MAP },
                 onOpenSettingsClick = { currentRoute = OctoRoute.SETTINGS },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
                 onAppClick = { entry ->
@@ -152,6 +157,11 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                         entry.iconType == OctoIconType.TODOS ||
                             entry.packageName == "octo.internal.all_apps" -> {
                             currentRoute = OctoRoute.ALL_APPS
+                        }
+
+                        entry.iconType == OctoIconType.MAPA || entry.label == "MAPA" -> {
+                            scope.launch { prefsRepo.incrementLaunchCount(entry.packageName) }
+                            currentRoute = OctoRoute.MAP
                         }
 
                         entry.label == "CONFIG" -> {
@@ -173,15 +183,39 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         OctoRoute.ALL_APPS -> {
             AllAppsScreen(
                 apps = allAppsWithUsage,
+                dockApps = dockApps,
                 onAppClick = { entry ->
-                    if (entry.label == "CONFIG") {
-                        currentRoute = OctoRoute.SETTINGS
-                    } else {
-                        scope.launch {
-                            prefsRepo.incrementLaunchCount(entry.packageName)
+                    when {
+                        entry.label == "CONFIG" -> currentRoute = OctoRoute.SETTINGS
+                        entry.iconType == OctoIconType.MAPA || entry.label == "MAPA" -> {
+                            scope.launch { prefsRepo.incrementLaunchCount(entry.packageName) }
+                            currentRoute = OctoRoute.MAP
                         }
-                        InstalledAppsHelper.launchAppOrFallback(context, entry)
+                        else -> {
+                            scope.launch {
+                                prefsRepo.incrementLaunchCount(entry.packageName)
+                            }
+                            InstalledAppsHelper.launchAppOrFallback(context, entry)
+                        }
                     }
+                },
+                onBackClick = { currentRoute = OctoRoute.HOME },
+                modifier = modifier
+            )
+        }
+
+        OctoRoute.MAP -> {
+            MapScreen(
+                activeTrip = activeTrip,
+                isOnline = effectiveOnline,
+                onStartTrip = { destination, mode ->
+                    scope.launch { prefsRepo.startTrip(destination, mode) }
+                },
+                onStopTrip = {
+                    scope.launch { prefsRepo.stopTrip() }
+                },
+                onOpenGoogleMapsIntent = { destination, mode ->
+                    InstalledAppsHelper.launchGoogleMapsNavigation(context, destination, mode)
                 },
                 onBackClick = { currentRoute = OctoRoute.HOME },
                 modifier = modifier
@@ -190,30 +224,24 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
 
         OctoRoute.SETTINGS -> {
             SettingsScreen(
-                settings = activeSettings,
-                updateStatusMessage = updateStatusMessage,
-                onToggleOrbitMode = { enabled ->
-                    scope.launch { prefsRepo.setOrbitModeEnabled(enabled) }
+                settings = storedSettings,
+                isOnline = networkConnected,
+                onPerformanceFractionChange = { fraction ->
+                    scope.launch { prefsRepo.setPerformanceSliderFraction(fraction) }
                 },
-                onToggleUsageBars = { enabled ->
-                    scope.launch { prefsRepo.setShowUsageBars(enabled) }
+                onToggleAnimations = { enabled ->
+                    scope.launch { prefsRepo.setAnimationsEnabled(enabled) }
                 },
-                onToggleHaptic = { enabled ->
-                    scope.launch { prefsRepo.setHapticFeedback(enabled) }
+                onToggleAutoUpdate = { enabled ->
+                    scope.launch { prefsRepo.setAutoUpdateEnabled(enabled) }
                 },
-                onClockScaleChange = { percent ->
-                    scope.launch { prefsRepo.setClockScalePercent(percent) }
-                },
-                onGridLimitChange = { limit ->
-                    scope.launch { prefsRepo.setGridAppsLimit(limit) }
+                onToggleOfflineMode = { enabled ->
+                    scope.launch { prefsRepo.setOfflineModeEnabled(enabled) }
                 },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
+                onOpenMapClick = { currentRoute = OctoRoute.MAP },
                 onCheckUpdateClick = {
-                    updateStatusMessage = if (isConnected) {
-                        "ATUALIZADO · v${BuildConfig.VERSION_NAME}"
-                    } else {
-                        "SEM INTERNET"
-                    }
+                    // Connects to Task 6 Update screen
                 },
                 onBackClick = { currentRoute = OctoRoute.HOME },
                 modifier = modifier
@@ -222,16 +250,12 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
 
         OctoRoute.OVERCLOCK -> {
             OverclockScreen(
-                selectedMode = activeSettings.overclockMode,
-                cpuPercent = activeSettings.overclockMode.baseCpuPercent,
-                ramPercent = activeSettings.overclockMode.baseRamPercent,
-                temperatureCelsius = activeSettings.effectiveCpuTemp,
+                selectedMode = storedSettings.overclockMode,
+                cpuPercent = storedSettings.overclockMode.baseCpuPercent,
+                ramPercent = storedSettings.overclockMode.baseRamPercent,
+                temperatureCelsius = storedSettings.effectiveCpuTemp,
                 onSelectMode = { mode ->
-                    tempOverride = null
                     scope.launch { prefsRepo.setOverclockMode(mode) }
-                },
-                onTemperatureOverrideChange = { newTemp ->
-                    tempOverride = newTemp
                 },
                 onBackClick = { currentRoute = OctoRoute.SETTINGS },
                 modifier = modifier

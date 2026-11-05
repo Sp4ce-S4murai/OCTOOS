@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,13 +27,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pedro.octoos.data.AppEntry
 import com.pedro.octoos.data.InstalledAppsHelper
+import com.pedro.octoos.ui.components.OctoIconType
 import com.pedro.octoos.ui.components.OctoSolidIcon
 import com.pedro.octoos.ui.theme.BebasNeueFamily
 import com.pedro.octoos.ui.theme.ChamferedShape
@@ -45,14 +49,12 @@ import com.pedro.octoos.ui.theme.OctoGray
 import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
-import com.pedro.octoos.ui.theme.OctoTile
 import com.pedro.octoos.ui.theme.OrbitronFamily
-import com.pedro.octoos.ui.theme.ShareTechMonoFamily
 import java.text.Normalizer
 import java.util.Locale
 
 enum class AllAppsFilter(val label: String) {
-    AZ("A–Z"),
+    AZ("A-Z"),
     USAGE("USO"),
     NEW("NOVOS")
 }
@@ -60,6 +62,7 @@ enum class AllAppsFilter(val label: String) {
 @Composable
 fun AllAppsScreen(
     apps: List<AppEntry>,
+    dockApps: List<AppEntry>,
     onAppClick: (AppEntry) -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -90,22 +93,23 @@ fun AllAppsScreen(
             .background(OctoBackground)
             .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
-        AllAppsHeader(onBackClick = onBackClick)
+        AllAppsTopBar(
+            totalCount = apps.size.coerceAtLeast(24),
+            onBackClick = onBackClick
+        )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         SearchInputBar(
             query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onClear = { searchQuery = "" }
+            onQueryChange = { searchQuery = it }
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         FilterChipsRow(
             selected = selectedFilter,
-            onSelect = { selectedFilter = it },
-            totalCount = filteredApps.size
+            onSelect = { selectedFilter = it }
         )
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -126,83 +130,110 @@ fun AllAppsScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Compact icon-only lime dock at the bottom of All Apps
+            CompactIconDock(
+                dockApps = dockApps,
+                onDockClick = { entry ->
+                    if (entry.iconType == OctoIconType.TODOS) {
+                        onBackClick()
+                    } else {
+                        onAppClick(entry)
+                    }
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun AllAppsHeader(onBackClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "TODOS OS APPS",
-            fontFamily = OrbitronFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = OctoText,
-            letterSpacing = 1.5.sp
-        )
-        Box(
-            modifier = Modifier
-                .clip(ChamferedShape(8.dp))
-                .background(OctoTile)
-                .border(1.dp, OctoBorder, ChamferedShape(8.dp))
-                .clickable(onClick = onBackClick)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
+private fun AllAppsTopBar(
+    totalCount: Int,
+    onBackClick: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "← INÍCIO",
+                text = "TODOS OS APPS",
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OctoLime
+                color = OctoLime,
+                letterSpacing = 0.6.sp,
+                modifier = Modifier.clickable(onClick = onBackClick)
+            )
+            Text(
+                text = "$totalCount",
+                fontFamily = IbmPlexMonoFamily,
+                fontWeight = FontWeight.Medium,
+                fontSize = 11.sp,
+                color = OctoGray
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(color = OctoText, fontWeight = FontWeight.Bold)) {
+                    append("APPS")
+                }
+                withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Bold)) {
+                    append("/")
+                }
+            },
+            fontFamily = OrbitronFamily,
+            fontSize = 22.sp,
+            letterSpacing = 1.5.sp
+        )
     }
 }
 
 @Composable
 private fun SearchInputBar(
     query: String,
-    onQueryChange: (String) -> Unit,
-    onClear: () -> Unit
+    onQueryChange: (String) -> Unit
 ) {
-    val shape = ChamferedShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
-            .clip(shape)
-            .background(OctoTile)
-            .border(
-                width = 1.dp,
-                color = if (query.isNotEmpty()) OctoLime else OctoBorder,
-                shape = shape
-            )
-            .padding(horizontal = 14.dp),
+            .height(42.dp)
+            .background(OctoBackground)
+            .border(width = 1.dp, color = OctoLime)
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = ">",
-            fontFamily = ShareTechMonoFamily,
-            fontSize = 16.sp,
+            text = "> ",
+            fontFamily = IbmPlexMonoFamily,
+            fontSize = 13.sp,
             color = OctoLime
         )
-        Spacer(modifier = Modifier.width(10.dp))
         Box(
             modifier = Modifier.weight(1f),
             contentAlignment = Alignment.CenterStart
         ) {
             if (query.isEmpty()) {
                 Text(
-                    text = "BUSCAR APLICATIVO...",
+                    text = "buscar_",
                     fontFamily = IbmPlexMonoFamily,
-                    fontSize = 12.sp,
-                    color = OctoGray,
-                    letterSpacing = 0.8.sp
+                    fontSize = 13.sp,
+                    color = OctoLime
                 )
             }
             BasicTextField(
@@ -213,21 +244,9 @@ private fun SearchInputBar(
                 textStyle = TextStyle(
                     fontFamily = IbmPlexMonoFamily,
                     fontSize = 13.sp,
-                    color = OctoText,
-                    letterSpacing = 0.8.sp
+                    color = OctoLime
                 ),
                 modifier = Modifier.fillMaxWidth()
-            )
-        }
-        if (query.isNotEmpty()) {
-            Text(
-                text = "LIMPAR",
-                fontFamily = IbmPlexMonoFamily,
-                fontSize = 10.sp,
-                color = OctoLime,
-                modifier = Modifier
-                    .clickable(onClick = onClear)
-                    .padding(start = 8.dp)
             )
         }
     }
@@ -236,8 +255,7 @@ private fun SearchInputBar(
 @Composable
 private fun FilterChipsRow(
     selected: AllAppsFilter,
-    onSelect: (AllAppsFilter) -> Unit,
-    totalCount: Int
+    onSelect: (AllAppsFilter) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -246,39 +264,27 @@ private fun FilterChipsRow(
     ) {
         AllAppsFilter.entries.forEach { filter ->
             val isSelected = filter == selected
-            val chipShape = ChamferedShape(10.dp)
             Box(
                 modifier = Modifier
-                    .clip(chipShape)
-                    .background(if (isSelected) OctoLime else OctoTile)
+                    .background(if (isSelected) OctoLime else OctoBackground)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) OctoLime else OctoBorder,
-                        shape = chipShape
+                        color = if (isSelected) OctoLime else OctoBorder
                     )
                     .clickable { onSelect(filter) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = filter.label,
                     fontFamily = IbmPlexMonoFamily,
                     fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     color = if (isSelected) OctoBackground else OctoText,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.8.sp
                 )
             }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Text(
-            text = "$totalCount APPS",
-            fontFamily = ShareTechMonoFamily,
-            fontSize = 12.sp,
-            color = OctoGray
-        )
     }
 }
 
@@ -297,7 +303,7 @@ private fun AzSectionedGrid(
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(bottom = 16.dp),
+        contentPadding = PaddingValues(bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         grouped.forEach { (letter, sectionApps) ->
@@ -305,7 +311,8 @@ private fun AzSectionedGrid(
                 LetterSeparatorHeader(letter = letter)
             }
 
-            val rows = sectionApps.chunked(4)
+            // 3-column grid of lime chamfered tiles matching the mockup
+            val rows = sectionApps.chunked(3)
             items(
                 items = rows,
                 key = { row -> "row_${letter}_${row.first().packageName}" }
@@ -314,10 +321,10 @@ private fun AzSectionedGrid(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    for (col in 0 until 4) {
+                    for (col in 0 until 3) {
                         val app = rowApps.getOrNull(col)
                         if (app != null) {
-                            AllAppsGridTile(
+                            AllAppsLimeGridTile(
                                 entry = app,
                                 onClick = { onAppClick(app) },
                                 modifier = Modifier.weight(1f)
@@ -337,14 +344,13 @@ private fun LetterSeparatorHeader(letter: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp, bottom = 2.dp),
+            .padding(top = 4.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = letter,
-            fontFamily = OrbitronFamily,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
+            fontFamily = BebasNeueFamily,
+            fontSize = 24.sp,
             color = OctoLime
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -358,7 +364,7 @@ private fun LetterSeparatorHeader(letter: String) {
 }
 
 @Composable
-private fun AllAppsGridTile(
+private fun AllAppsLimeGridTile(
     entry: AppEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -366,53 +372,32 @@ private fun AllAppsGridTile(
     val shape = ChamferedShape(12.dp)
     Box(
         modifier = modifier
-            .height(64.dp)
+            .height(62.dp)
             .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, OctoBorder, shape)
-            .clickable(onClick = onClick)
+            .background(OctoLime)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            if (entry.iconType != null) {
-                OctoSolidIcon(
-                    type = entry.iconType,
-                    size = 19.dp,
-                    tint = OctoLime
-                )
-            } else {
-                Text(
-                    text = entry.monogram,
-                    fontFamily = BebasNeueFamily,
-                    fontSize = 20.sp,
-                    color = OctoLime,
-                    letterSpacing = 1.sp
-                )
-            }
-            Spacer(modifier = Modifier.height(3.dp))
+            OctoSolidIcon(
+                type = entry.iconType ?: OctoIconType.TODOS,
+                size = 20.dp,
+                tint = OctoBackground
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = entry.label,
                 fontFamily = IbmPlexMonoFamily,
-                fontSize = 9.sp,
-                color = OctoText,
+                fontWeight = FontWeight.Medium,
+                fontSize = 8.sp,
+                color = OctoBackground,
+                letterSpacing = 0.6.sp,
                 maxLines = 1
             )
         }
-
-        // 3.dp usage bar at the bottom of the tile
-        val ratio = entry.usageRatio.coerceIn(0.12f, 1f)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth(ratio)
-                .height(3.dp)
-                .background(OctoLime)
-        )
     }
 }
 
@@ -424,8 +409,7 @@ private fun AppUsageList(
 ) {
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        contentPadding = PaddingValues(bottom = 8.dp)
     ) {
         items(items = apps, key = { it.packageName }) { entry ->
             AppUsageListRow(
@@ -441,113 +425,107 @@ private fun AppUsageListRow(
     entry: AppEntry,
     onClick: () -> Unit
 ) {
-    val shape = ChamferedShape(12.dp)
-    Box(
+    val firstLetter = normalizeForSearch(entry.label).firstOrNull()?.toString() ?: "A"
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, OctoBorder, shape)
             .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp),
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier.size(28.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (entry.iconType != null) {
-                    OctoSolidIcon(
-                        type = entry.iconType,
-                        size = 20.dp,
-                        tint = OctoLime
-                    )
-                } else {
-                    Text(
-                        text = entry.monogram,
-                        fontFamily = BebasNeueFamily,
-                        fontSize = 20.sp,
-                        color = OctoLime
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = firstLetter,
+                fontFamily = BebasNeueFamily,
+                fontSize = 24.sp,
+                color = OctoLime,
+                modifier = Modifier.width(28.dp)
+            )
 
             Text(
                 text = entry.label,
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 color = OctoText,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
 
-            // Open count on the right
+            // Open count on the right ("HOJE · 42×")
             Text(
-                text = "${entry.launchCount}",
-                fontFamily = ShareTechMonoFamily,
-                fontSize = 16.sp,
-                color = OctoLime
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "ABERTURAS",
+                text = "${entry.recencyLabel} · ${entry.launchCount}×",
                 fontFamily = IbmPlexMonoFamily,
-                fontSize = 9.sp,
-                color = OctoGray
+                fontSize = 10.sp,
+                color = OctoGray,
+                letterSpacing = 0.5.sp
             )
         }
 
-        // 3.dp usage bar at the bottom of the list tile
-        val ratio = entry.usageRatio.coerceIn(0.10f, 1f)
         Box(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth(ratio)
-                .height(3.dp)
-                .background(OctoLime)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(OctoBorder)
         )
     }
 }
 
 @Composable
+private fun CompactIconDock(
+    dockApps: List<AppEntry>,
+    onDockClick: (AppEntry) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        dockApps.take(4).forEach { dockItem ->
+            val shape = ChamferedShape(12.dp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(54.dp)
+                    .clip(shape)
+                    .background(OctoLime)
+                    .clickable { onDockClick(dockItem) },
+                contentAlignment = Alignment.Center
+            ) {
+                OctoSolidIcon(
+                    type = dockItem.iconType ?: OctoIconType.TODOS,
+                    size = 20.dp,
+                    tint = OctoBackground
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyResultsState(modifier: Modifier = Modifier) {
-    val shape = ChamferedShape(12.dp)
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(OctoTile)
-                .border(1.dp, OctoBorder, shape)
-                .padding(vertical = 36.dp, horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "SEM RESULTADOS",
-                fontFamily = OrbitronFamily,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
+                text = "SEM\nRESULTADOS",
+                fontFamily = BebasNeueFamily,
+                fontSize = 44.sp,
+                lineHeight = 44.sp,
                 color = OctoLime,
-                letterSpacing = 2.sp
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.5.sp
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = "NENHUM APLICATIVO CORRESPONDE À BUSCA",
+                text = "Nenhum app com esse nome.",
                 fontFamily = IbmPlexMonoFamily,
-                fontSize = 10.sp,
-                color = OctoGray,
-                letterSpacing = 0.8.sp
+                fontSize = 11.sp,
+                color = OctoGray
             )
         }
     }
@@ -561,7 +539,7 @@ private fun normalizeForSearch(input: String): String {
 }
 
 @Preview(
-    name = "Todos os Apps (A–Z Grade)",
+    name = "Todos os Apps (A–Z em Grade)",
     showBackground = true,
     backgroundColor = 0xFF0A0A0A,
     widthDp = 360,
@@ -572,6 +550,7 @@ private fun AllAppsAzPreview() {
     OctoOSTheme {
         AllAppsScreen(
             apps = InstalledAppsHelper.defaultCatalogApps(),
+            dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},
             initialFilter = AllAppsFilter.AZ
@@ -580,7 +559,7 @@ private fun AllAppsAzPreview() {
 }
 
 @Preview(
-    name = "Todos os Apps (USO Lista)",
+    name = "Todos os Apps (USO em Lista)",
     showBackground = true,
     backgroundColor = 0xFF0A0A0A,
     widthDp = 360,
@@ -591,6 +570,7 @@ private fun AllAppsUsagePreview() {
     OctoOSTheme {
         AllAppsScreen(
             apps = InstalledAppsHelper.defaultCatalogApps(),
+            dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},
             initialFilter = AllAppsFilter.USAGE
@@ -599,7 +579,7 @@ private fun AllAppsUsagePreview() {
 }
 
 @Preview(
-    name = "Todos os Apps (SEM RESULTADOS)",
+    name = "Busca Sem Resultados",
     showBackground = true,
     backgroundColor = 0xFF0A0A0A,
     widthDp = 360,
@@ -610,10 +590,10 @@ private fun AllAppsEmptyPreview() {
     OctoOSTheme {
         AllAppsScreen(
             apps = InstalledAppsHelper.defaultCatalogApps(),
+            dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {},
             onBackClick = {},
-            initialQuery = "XYZ_INEXISTENTE"
+            initialQuery = "rua xyz"
         )
     }
 }
-

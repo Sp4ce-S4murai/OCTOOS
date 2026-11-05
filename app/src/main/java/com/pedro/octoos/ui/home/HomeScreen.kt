@@ -1,7 +1,6 @@
 package com.pedro.octoos.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +24,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pedro.octoos.data.ActiveTripState
 import com.pedro.octoos.data.AppEntry
 import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.SettingsState
@@ -43,7 +43,6 @@ import com.pedro.octoos.ui.theme.OctoGray
 import com.pedro.octoos.ui.theme.OctoLime
 import com.pedro.octoos.ui.theme.OctoOSTheme
 import com.pedro.octoos.ui.theme.OctoText
-import com.pedro.octoos.ui.theme.OctoTile
 import com.pedro.octoos.ui.theme.OrbitronFamily
 import java.util.Locale
 
@@ -60,10 +59,13 @@ fun HomeScreen(
     onAppClick: (AppEntry) -> Unit,
     modifier: Modifier = Modifier,
     settings: SettingsState = SettingsState(),
+    activeTrip: ActiveTripState = ActiveTripState(isActive = false),
+    onTripClick: () -> Unit = {},
     onOpenSettingsClick: () -> Unit = {},
     onOpenOverclockClick: () -> Unit = {}
 ) {
-    val scaledRingSize = (236f * (settings.clockScalePercent / 100f)).dp
+    val baseRing = if (activeTrip.isActive) 196f else 224f
+    val scaledRingSize = (baseRing * (settings.clockScalePercent / 100f)).dp
 
     Column(
         modifier = modifier
@@ -74,7 +76,7 @@ fun HomeScreen(
     ) {
         HomeTelemetryHeader(
             telemetry = telemetry,
-            overclockLabel = settings.overclockMode.label.uppercase(Locale.ROOT),
+            isOffline = weather.isOffline,
             onOpenSettingsClick = onOpenSettingsClick,
             onOpenOverclockClick = onOpenOverclockClick
         )
@@ -88,17 +90,25 @@ fun HomeScreen(
             dateLabel = dateLabel,
             ringSize = scaledRingSize,
             orbitMode = settings.orbitModeEnabled,
-            animationsEnabled = settings.overclockMode.animationsEnabled,
+            animationsEnabled = settings.animationsEnabled,
             animationDurationMs = settings.overclockMode.animationDurationMs
         )
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(if (activeTrip.isActive) 12.dp else 18.dp))
 
-        WeatherReadout(weather = weather)
+        // When a trip is active, show the mini-map right below the clock; otherwise show weather
+        if (activeTrip.isActive) {
+            ActiveTripCard(
+                trip = activeTrip,
+                onClick = onTripClick
+            )
+        } else {
+            WeatherReadout(weather = weather)
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Top app grid with optional 3.dp usage bars at the base of each tile
+        // Top app grid with 3.dp usage bars at the base of each tile
         val visibleGridApps = gridApps.take(settings.gridAppsLimit)
         val rows = visibleGridApps.chunked(4)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -154,7 +164,7 @@ fun HomeScreen(
 @Composable
 private fun HomeTelemetryHeader(
     telemetry: TelemetryState,
-    overclockLabel: String,
+    isOffline: Boolean,
     onOpenSettingsClick: () -> Unit,
     onOpenOverclockClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -178,14 +188,14 @@ private fun HomeTelemetryHeader(
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
                 color = OctoLime,
-                letterSpacing = 0.5.sp
+                letterSpacing = 0.4.sp
             )
             Text(
-                text = "${telemetry.cpuTempCelsius}°C",
+                text = if (isOffline) "○ OFFLINE" else "${telemetry.cpuTempCelsius}°C",
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = if (isHot) OctoDanger else OctoGray,
+                color = if (isHot && !isOffline) OctoDanger else OctoGray,
                 modifier = Modifier.clickable(onClick = onOpenOverclockClick)
             )
         }
@@ -201,65 +211,19 @@ private fun HomeTelemetryHeader(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = OctoText, fontWeight = FontWeight.Bold)) {
-                        append("OCTO")
-                    }
-                    withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Bold)) {
-                        append("/OS")
-                    }
-                },
-                fontFamily = OrbitronFamily,
-                fontSize = 22.sp,
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.clickable(onClick = onOpenSettingsClick)
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                HeaderBadge(
-                    label = overclockLabel,
-                    accent = isHot,
-                    onClick = onOpenOverclockClick
-                )
-                HeaderBadge(
-                    label = "CFG",
-                    accent = false,
-                    onClick = onOpenSettingsClick
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HeaderBadge(
-    label: String,
-    accent: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = ChamferedShape(6.dp)
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .background(OctoTile)
-            .border(1.dp, if (accent) OctoDanger else OctoBorder, shape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
         Text(
-            text = label,
-            fontFamily = IbmPlexMonoFamily,
-            fontWeight = FontWeight.Medium,
-            fontSize = 9.sp,
-            color = if (accent) OctoDanger else OctoGray,
-            letterSpacing = 0.8.sp
+            text = buildAnnotatedString {
+                withStyle(SpanStyle(color = OctoText, fontWeight = FontWeight.Bold)) {
+                    append("OCTO")
+                }
+                withStyle(SpanStyle(color = OctoLime, fontWeight = FontWeight.Bold)) {
+                    append("/OS")
+                }
+            },
+            fontFamily = OrbitronFamily,
+            fontSize = 22.sp,
+            letterSpacing = 1.5.sp,
+            modifier = Modifier.clickable(onClick = onOpenSettingsClick)
         )
     }
 }
@@ -304,12 +268,13 @@ private fun WeatherReadout(
         }
 
         if (weather.isOffline) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "desatualizado · há ${weather.hoursSinceUpdate}h",
+                text = "desatualizado · há ${weather.hoursSinceUpdate} h",
                 fontFamily = IbmPlexMonoFamily,
                 fontSize = 11.sp,
-                color = OctoGray
+                color = OctoGray,
+                letterSpacing = 0.6.sp
             )
         }
     }
@@ -392,14 +357,39 @@ fun LimeChamferTile(
 private fun HomeScreenPreview() {
     OctoOSTheme {
         HomeScreen(
-            hours24 = 16,
-            minutes = 37,
-            seconds = 45,
-            dateLabel = "SEG, 02 DE NOV.",
+            hours24 = 21,
+            minutes = 49,
+            seconds = 30,
+            dateLabel = "QUA, 04 DE NOV.",
             telemetry = TelemetryState(),
             weather = WeatherState(isOffline = false),
             gridApps = InstalledAppsHelper.defaultHomeGridApps(),
             dockApps = InstalledAppsHelper.defaultDockApps(),
+            onAppClick = {}
+        )
+    }
+}
+
+@Preview(
+    name = "Início com Viagem — OctoOS",
+    showBackground = true,
+    backgroundColor = 0xFF0A0A0A,
+    widthDp = 360,
+    heightDp = 740
+)
+@Composable
+private fun HomeScreenTripPreview() {
+    OctoOSTheme {
+        HomeScreen(
+            hours24 = 21,
+            minutes = 49,
+            seconds = 30,
+            dateLabel = "QUA, 04 DE NOV.",
+            telemetry = TelemetryState(),
+            weather = WeatherState(isOffline = false),
+            gridApps = InstalledAppsHelper.defaultHomeGridApps(),
+            dockApps = InstalledAppsHelper.defaultDockApps(),
+            activeTrip = ActiveTripState(isActive = true),
             onAppClick = {}
         )
     }
@@ -416,12 +406,12 @@ private fun HomeScreenPreview() {
 private fun HomeScreenOfflinePreview() {
     OctoOSTheme {
         HomeScreen(
-            hours24 = 16,
-            minutes = 37,
-            seconds = 45,
-            dateLabel = "SEG, 02 DE NOV.",
+            hours24 = 21,
+            minutes = 49,
+            seconds = 30,
+            dateLabel = "QUA, 04 DE NOV.",
             telemetry = TelemetryState(),
-            weather = WeatherState(isOffline = true, hoursSinceUpdate = 3),
+            weather = WeatherState(isOffline = true, hoursSinceUpdate = 2),
             gridApps = InstalledAppsHelper.defaultHomeGridApps(),
             dockApps = InstalledAppsHelper.defaultDockApps(),
             onAppClick = {}
