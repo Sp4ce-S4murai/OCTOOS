@@ -216,3 +216,4 @@ object GithubUpdateManager {
         }.getOrDefault(false)
     }
 }
+

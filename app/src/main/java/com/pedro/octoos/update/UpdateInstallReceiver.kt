@@ -26,3 +26,4 @@ class UpdateInstallReceiver : BroadcastReceiver() {
         }
     }
 }
+
