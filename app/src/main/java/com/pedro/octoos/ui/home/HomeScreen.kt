@@ -66,6 +66,7 @@ fun HomeScreen(
     onUpdateBannerDownload: () -> Unit = {},
     onUpdateBannerLater: () -> Unit = {},
     onTripClick: () -> Unit = {},
+    onGpsHeaderClick: () -> Unit = {},
     onOpenSettingsClick: () -> Unit = {},
     onOpenOverclockClick: () -> Unit = {}
 ) {
@@ -91,6 +92,7 @@ fun HomeScreen(
         HomeTelemetryHeader(
             telemetry = telemetry,
             isOffline = weather.isOffline,
+            onGpsHeaderClick = onGpsHeaderClick,
             onOpenSettingsClick = onOpenSettingsClick,
             onOpenOverclockClick = onOpenOverclockClick
         )
@@ -179,6 +181,7 @@ fun HomeScreen(
 private fun HomeTelemetryHeader(
     telemetry: TelemetryState,
     isOffline: Boolean,
+    onGpsHeaderClick: () -> Unit,
     onOpenSettingsClick: () -> Unit,
     onOpenOverclockClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -190,19 +193,24 @@ private fun HomeTelemetryHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val coordsText = String.format(
-                Locale.US,
-                "X %.4f · Y %.4f",
-                telemetry.latitude,
-                telemetry.longitude
-            )
+            val coordsText = if (!telemetry.isGpsEnabled) {
+                "SEM GPS · ATIVAR"
+            } else {
+                String.format(
+                    Locale.US,
+                    "X %.4f · Y %.4f",
+                    telemetry.latitude,
+                    telemetry.longitude
+                )
+            }
             Text(
                 text = coordsText,
                 fontFamily = IbmPlexMonoFamily,
                 fontWeight = FontWeight.Medium,
                 fontSize = 11.sp,
-                color = OctoLime,
-                letterSpacing = 0.4.sp
+                color = if (telemetry.isGpsEnabled) OctoLime else OctoGray,
+                letterSpacing = 0.4.sp,
+                modifier = Modifier.clickable(onClick = onGpsHeaderClick)
             )
             Text(
                 text = if (isOffline) "○ OFFLINE" else "${telemetry.cpuTempCelsius}°C",

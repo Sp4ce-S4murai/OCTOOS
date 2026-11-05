@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -22,12 +25,26 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.Dash
+import com.google.android.gms.maps.model.Gap
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.maps.android.compose.Circle
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Polyline
+import com.google.maps.android.compose.rememberCameraPositionState
 import com.pedro.octoos.data.ActiveTripState
+import com.pedro.octoos.data.LocationTracker
 import com.pedro.octoos.ui.theme.BebasNeueFamily
 import com.pedro.octoos.ui.theme.IbmPlexMonoFamily
 import com.pedro.octoos.ui.theme.OctoBackground
@@ -38,7 +55,7 @@ import com.pedro.octoos.ui.theme.OctoText
 
 /**
  * Rectangular active trip mini-map card shown right below the clock when a trip is active.
- * Hidden when no trip is in progress.
+ * Renders a real GoogleMap with dark cyber-brutal styling, dashed lime Polyline, and live GPS markers.
  */
 @Composable
 fun ActiveTripCard(
@@ -46,6 +63,20 @@ fun ActiveTripCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isPreview = LocalInspectionMode.current
+    val origin = remember(trip.originLat, trip.originLng) {
+        LatLng(trip.originLat, trip.originLng)
+    }
+    val destination = remember(trip.destinationLat, trip.destinationLng) {
+        LatLng(trip.destinationLat, trip.destinationLng)
+    }
+    val midWaypoint = remember(origin, destination) {
+        LatLng(
+            (origin.latitude + destination.latitude) / 2.0 + 0.0022,
+            (origin.longitude + destination.longitude) / 2.0 - 0.0018
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -80,7 +111,6 @@ fun ActiveTripCard(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Rectangular mini-map canvas with street grid, dashed lime route, blue GPS dot, 300 M and 12 min
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -88,75 +118,62 @@ fun ActiveTripCard(
                 .background(Color(0xFF0E130D))
                 .border(1.dp, OctoBorder)
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = size.width
-                val h = size.height
-                val gridColor = Color(0xFF222D21)
+            if (!isPreview) {
+                val cameraPositionState = rememberCameraPositionState {
+                    position = CameraPosition.fromLatLngZoom(origin, 14.5f)
+                }
+                val mapStyle = remember {
+                    MapStyleOptions(LocationTracker.CYBER_BRUTAL_MAP_STYLE_JSON)
+                }
 
-                // Street grid lines
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, h * 0.36f),
-                    end = Offset(w, h * 0.44f),
-                    strokeWidth = 1.6.dp.toPx()
-                )
-                drawLine(
-                    color = gridColor,
-                    start = Offset(0f, h * 0.72f),
-                    end = Offset(w, h * 0.70f),
-                    strokeWidth = 1.6.dp.toPx()
-                )
-                drawLine(
-                    color = gridColor,
-                    start = Offset(w * 0.31f, 0f),
-                    end = Offset(w * 0.35f, h),
-                    strokeWidth = 1.6.dp.toPx()
-                )
-                drawLine(
-                    color = gridColor,
-                    start = Offset(w * 0.68f, 0f),
-                    end = Offset(w * 0.73f, h),
-                    strokeWidth = 1.6.dp.toPx()
-                )
+                LaunchedEffect(origin, destination) {
+                    runCatching {
+                        val bounds = LatLngBounds.builder()
+                            .include(origin)
+                            .include(destination)
+                            .build()
+                        cameraPositionState.move(CameraUpdateFactory.newLatLngBounds(bounds, 44))
+                    }
+                }
 
-                // Dashed lime maneuver route curve
-                val routePath = Path().apply {
-                    moveTo(w * 0.22f, h * 0.72f)
-                    cubicTo(
-                        w * 0.42f, h * 0.45f,
-                        w * 0.66f, h * 0.32f,
-                        w * 0.94f, h * 0.23f
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(mapStyleOptions = mapStyle),
+                    uiSettings = MapUiSettings(
+                        zoomControlsEnabled = false,
+                        compassEnabled = false,
+                        mapToolbarEnabled = false,
+                        scrollGesturesEnabled = false,
+                        zoomGesturesEnabled = false,
+                        tiltGesturesEnabled = false,
+                        rotationGesturesEnabled = false
+                    ),
+                    onMapClick = { onClick() }
+                ) {
+                    Polyline(
+                        points = listOf(origin, midWaypoint, destination),
+                        color = OctoLime,
+                        width = 7f,
+                        pattern = listOf(Dash(18f), Gap(12f))
+                    )
+                    Circle(
+                        center = origin,
+                        radius = 45.0,
+                        fillColor = Color(0xFF3A86FF),
+                        strokeColor = Color.White,
+                        strokeWidth = 4f
+                    )
+                    Circle(
+                        center = destination,
+                        radius = 35.0,
+                        fillColor = OctoLime,
+                        strokeColor = OctoBackground,
+                        strokeWidth = 2f
                     )
                 }
-                drawPath(
-                    path = routePath,
-                    color = OctoLime,
-                    style = Stroke(
-                        width = 2.2.dp.toPx(),
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 9f), 0f)
-                    )
-                )
-
-                // Destination lime square marker at top-right of route
-                drawCircle(
-                    color = OctoLime,
-                    radius = 3.5.dp.toPx(),
-                    center = Offset(w * 0.94f, h * 0.21f)
-                )
-
-                // Current user GPS dot (white outer ring + blue fill)
-                val userCenter = Offset(w * 0.22f, h * 0.72f)
-                drawCircle(
-                    color = Color.White,
-                    radius = 6.5.dp.toPx(),
-                    center = userCenter
-                )
-                drawCircle(
-                    color = Color(0xFF3A86FF),
-                    radius = 4.6.dp.toPx(),
-                    center = userCenter
-                )
+            } else {
+                PreviewTacticalMiniMapCanvas()
             }
 
             // Top-left maneuver distance ("300 M") and top-right remaining time ("12 min")
@@ -192,7 +209,7 @@ fun ActiveTripCard(
             verticalAlignment = Alignment.Top
         ) {
             Text(
-                text = "Vire à direita · Av.\n${trip.destinationAddress.removePrefix("Av. ").trim()}",
+                text = "Vire à direita · ${trip.destinationAddress}",
                 fontFamily = IbmPlexMonoFamily,
                 fontSize = 10.sp,
                 lineHeight = 14.sp,
@@ -208,6 +225,38 @@ fun ActiveTripCard(
                 color = OctoLime
             )
         }
+    }
+}
+
+@Composable
+private fun PreviewTacticalMiniMapCanvas() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val gridColor = Color(0xFF222D21)
+
+        drawLine(gridColor, Offset(0f, h * 0.36f), Offset(w, h * 0.44f), 1.6.dp.toPx())
+        drawLine(gridColor, Offset(0f, h * 0.72f), Offset(w, h * 0.70f), 1.6.dp.toPx())
+        drawLine(gridColor, Offset(w * 0.31f, 0f), Offset(w * 0.35f, h), 1.6.dp.toPx())
+        drawLine(gridColor, Offset(w * 0.68f, 0f), Offset(w * 0.73f, h), 1.6.dp.toPx())
+
+        val routePath = Path().apply {
+            moveTo(w * 0.22f, h * 0.72f)
+            cubicTo(w * 0.42f, h * 0.45f, w * 0.66f, h * 0.32f, w * 0.94f, h * 0.23f)
+        }
+        drawPath(
+            path = routePath,
+            color = OctoLime,
+            style = Stroke(
+                width = 2.2.dp.toPx(),
+                cap = StrokeCap.Round,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 9f), 0f)
+            )
+        )
+        drawCircle(OctoLime, 3.5.dp.toPx(), Offset(w * 0.94f, h * 0.21f))
+        val userCenter = Offset(w * 0.22f, h * 0.72f)
+        drawCircle(Color.White, 6.5.dp.toPx(), userCenter)
+        drawCircle(Color(0xFF3A86FF), 4.6.dp.toPx(), userCenter)
     }
 }
 
@@ -227,4 +276,3 @@ private fun ActiveTripCardPreview() {
         }
     }
 }
-

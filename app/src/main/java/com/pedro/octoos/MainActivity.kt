@@ -1,10 +1,13 @@
 package com.pedro.octoos
 
+import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -20,9 +23,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.google.android.gms.maps.model.LatLng
 import com.pedro.octoos.data.ActiveTripState
 import com.pedro.octoos.data.InstalledAppsHelper
 import com.pedro.octoos.data.LauncherPreferencesRepository
+import com.pedro.octoos.data.LocationTracker
 import com.pedro.octoos.data.SettingsState
 import com.pedro.octoos.data.TelemetryState
 import com.pedro.octoos.data.WeatherState
@@ -85,6 +90,28 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
     var bannerDismissed by remember { mutableStateOf(false) }
     var downloadProgressPercent by remember { mutableIntStateOf(64) }
 
+    var hasLocationPermission by remember {
+        mutableStateOf(LocationTracker.hasLocationPermission(context))
+    }
+    var isGpsEnabled by remember {
+        mutableStateOf(LocationTracker.isGpsProviderEnabled(context))
+    }
+    var liveLocation by remember {
+        mutableStateOf<LatLng?>(LocationTracker.readCurrentLocation(context))
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val granted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
+        isGpsEnabled = LocationTracker.isGpsProviderEnabled(context)
+        if (granted) {
+            liveLocation = LocationTracker.readCurrentLocation(context)
+        }
+    }
+
     val baseGridApps = remember { InstalledAppsHelper.defaultHomeGridApps() }
     val dockApps = remember { InstalledAppsHelper.defaultDockApps() }
     val allCatalogApps = remember { InstalledAppsHelper.loadAllInstalledApps(context) }
@@ -118,11 +145,16 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         }
     }
 
-    // Clock update loop frequency controlled by OverclockMode (Eco 5000ms, Equilíbrio 1000ms, OC 250ms)
+    // Clock & GPS telemetry update loop controlled by OverclockMode (Eco 5000ms, Equilíbrio 1000ms, OC 250ms)
     LaunchedEffect(tickIntervalMs) {
         while (true) {
             now = LocalDateTime.now()
             networkConnected = InstalledAppsHelper.isNetworkConnected(context)
+            hasLocationPermission = LocationTracker.hasLocationPermission(context)
+            isGpsEnabled = LocationTracker.isGpsProviderEnabled(context)
+            if (hasLocationPermission && isGpsEnabled) {
+                LocationTracker.readCurrentLocation(context)?.let { liveLocation = it }
+            }
             delay(tickIntervalMs)
         }
     }
@@ -150,6 +182,29 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         }
     }
 
+    val currentTelemetry = remember(liveLocation, isGpsEnabled, hasLocationPermission, storedSettings.effectiveCpuTemp) {
+        TelemetryState(
+            latitude = liveLocation?.latitude ?: 36.1749,
+            longitude = liveLocation?.longitude ?: -86.6676,
+            hasGpsFix = liveLocation != null,
+            isGpsEnabled = isGpsEnabled && hasLocationPermission,
+            cpuTempCelsius = storedSettings.effectiveCpuTemp
+        )
+    }
+
+    fun requestGpsOrLocationPermission() {
+        if (!hasLocationPermission) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        } else if (!isGpsEnabled) {
+            LocationTracker.openLocationSettings(context)
+        }
+    }
+
     BackHandler(enabled = currentRoute != OctoRoute.HOME) {
         currentRoute = OctoRoute.HOME
     }
@@ -161,7 +216,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 minutes = now.minute,
                 seconds = now.second,
                 dateLabel = formatPortugueseShortDate(now),
-                telemetry = TelemetryState(cpuTempCelsius = storedSettings.effectiveCpuTemp),
+                telemetry = currentTelemetry,
                 weather = storedWeather.copy(isOffline = !effectiveOnline),
                 gridApps = gridCandidateApps,
                 dockApps = dockApps,
@@ -171,6 +226,7 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
                 onUpdateBannerDownload = { currentRoute = OctoRoute.UPDATE },
                 onUpdateBannerLater = { bannerDismissed = true },
                 onTripClick = { currentRoute = OctoRoute.MAP },
+                onGpsHeaderClick = { requestGpsOrLocationPermission() },
                 onOpenSettingsClick = { currentRoute = OctoRoute.SETTINGS },
                 onOpenOverclockClick = { currentRoute = OctoRoute.OVERCLOCK },
                 onAppClick = { entry ->
@@ -228,9 +284,13 @@ private fun LauncherRoot(modifier: Modifier = Modifier) {
         OctoRoute.MAP -> {
             MapScreen(
                 activeTrip = activeTrip,
+                userLocation = liveLocation,
                 isOnline = effectiveOnline,
-                onStartTrip = { destination, mode ->
-                    scope.launch { prefsRepo.startTrip(destination, mode) }
+                isGpsEnabled = isGpsEnabled,
+                hasLocationPermission = hasLocationPermission,
+                onRequestGpsOrPermission = { requestGpsOrLocationPermission() },
+                onStartRealTrip = { computedTrip ->
+                    scope.launch { prefsRepo.saveActiveTrip(computedTrip) }
                 },
                 onStopTrip = {
                     scope.launch { prefsRepo.stopTrip() }

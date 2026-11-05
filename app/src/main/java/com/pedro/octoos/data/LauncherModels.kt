@@ -56,6 +56,10 @@ enum class TravelMode(val label: String, val mapsModeCode: String) {
 data class ActiveTripState(
     val isActive: Boolean = false,
     val destinationAddress: String = "Av. Independência",
+    val originLat: Double = -23.5505,
+    val originLng: Double = -46.6333,
+    val destinationLat: Double = -23.5681,
+    val destinationLng: Double = -46.6492,
     val arrivalTimeLabel: String = "14:21",
     val nextManeuverDistanceLabel: String = "300 M",
     val remainingDurationLabel: String = "12 min",
@@ -103,5 +107,7 @@ data class WeatherState(
 data class TelemetryState(
     val latitude: Double = 36.1749,
     val longitude: Double = -86.6676,
+    val hasGpsFix: Boolean = true,
+    val isGpsEnabled: Boolean = true,
     val cpuTempCelsius: Int = 52
 )

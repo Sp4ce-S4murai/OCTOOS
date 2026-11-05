@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -36,6 +37,14 @@ class LauncherPreferencesRepository(private val context: Context) {
     private val tripActiveKey = booleanPreferencesKey("trip_is_active")
     private val tripDestinationKey = stringPreferencesKey("trip_destination")
     private val tripModeKey = stringPreferencesKey("trip_travel_mode")
+    private val tripOriginLatKey = doublePreferencesKey("trip_origin_lat")
+    private val tripOriginLngKey = doublePreferencesKey("trip_origin_lng")
+    private val tripDestLatKey = doublePreferencesKey("trip_dest_lat")
+    private val tripDestLngKey = doublePreferencesKey("trip_dest_lng")
+    private val tripDistanceKmKey = stringPreferencesKey("trip_distance_km")
+    private val tripDurationKey = stringPreferencesKey("trip_duration")
+    private val tripNextStepKey = stringPreferencesKey("trip_next_step")
+    private val tripArrivalKey = stringPreferencesKey("trip_arrival")
 
     fun launchCountsFlow(packageNames: List<String>): Flow<Map<String, Int>> {
         return context.dataStore.data.map { prefs ->
@@ -103,11 +112,15 @@ class LauncherPreferencesRepository(private val context: Context) {
         ActiveTripState(
             isActive = isActive,
             destinationAddress = destination,
-            arrivalTimeLabel = if (isWalking) "14:48" else "14:21",
-            nextManeuverDistanceLabel = if (isWalking) "120 M" else "300 M",
-            remainingDurationLabel = if (isWalking) "38 min" else "12 min",
+            originLat = prefs[tripOriginLatKey] ?: -23.5505,
+            originLng = prefs[tripOriginLngKey] ?: -46.6333,
+            destinationLat = prefs[tripDestLatKey] ?: -23.5681,
+            destinationLng = prefs[tripDestLngKey] ?: -46.6492,
+            arrivalTimeLabel = prefs[tripArrivalKey] ?: if (isWalking) "14:48" else "14:21",
+            nextManeuverDistanceLabel = prefs[tripNextStepKey] ?: if (isWalking) "120 M" else "300 M",
+            remainingDurationLabel = prefs[tripDurationKey] ?: if (isWalking) "38 min" else "12 min",
             maneuverInstruction = "Vire à direita · $destination",
-            remainingDistanceKmLabel = if (isWalking) "2,8 km" else "4,2 km",
+            remainingDistanceKmLabel = prefs[tripDistanceKmKey] ?: if (isWalking) "2,8 km" else "4,2 km",
             travelMode = mode
         )
     }
@@ -151,11 +164,19 @@ class LauncherPreferencesRepository(private val context: Context) {
         }
     }
 
-    suspend fun startTrip(destination: String, travelMode: TravelMode) {
+    suspend fun saveActiveTrip(trip: ActiveTripState) {
         context.dataStore.edit {
-            it[tripActiveKey] = true
-            it[tripDestinationKey] = destination.ifBlank { "Av. Independência" }
-            it[tripModeKey] = travelMode.name
+            it[tripActiveKey] = trip.isActive
+            it[tripDestinationKey] = trip.destinationAddress
+            it[tripModeKey] = trip.travelMode.name
+            it[tripOriginLatKey] = trip.originLat
+            it[tripOriginLngKey] = trip.originLng
+            it[tripDestLatKey] = trip.destinationLat
+            it[tripDestLngKey] = trip.destinationLng
+            it[tripDistanceKmKey] = trip.remainingDistanceKmLabel
+            it[tripDurationKey] = trip.remainingDurationLabel
+            it[tripNextStepKey] = trip.nextManeuverDistanceLabel
+            it[tripArrivalKey] = trip.arrivalTimeLabel
         }
     }
 
